@@ -1,0 +1,59 @@
+package com.example.finanzas.service.impl;
+import com.example.finanzas.service.DeudaService;
+
+import com.example.finanzas.dto.Deuda.DeudaDTO;
+import com.example.finanzas.model.DeudaEntity;
+import com.example.finanzas.model.UserEntity;
+import com.example.finanzas.repository.DeudaRepository;
+import jakarta.persistence.EntityNotFoundException;
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+
+@Service
+@RequiredArgsConstructor
+public class DeudaServiceImpl implements DeudaService {
+
+    private final DeudaRepository repository;
+
+    public DeudaEntity getDeuda(Long id, UserEntity user) {
+        DeudaEntity deuda = repository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Deuda no encontrada con id " + id));
+        verificarPropiedad(deuda, user);
+        return deuda;
+    }
+
+    public List<DeudaEntity> getAllDeudas(UserEntity user) {
+        return repository.findByUserId(user.getId());
+    }
+
+    public DeudaEntity crear(DeudaDTO deudaDTO, UserEntity user){
+        DeudaEntity deuda = new DeudaEntity();
+        aplicarDTO(deuda, deudaDTO);
+        deuda.setUser(user);
+        return repository.save(deuda);
+    }
+
+    public DeudaEntity update(Long id, DeudaDTO deudaDTO, UserEntity user){
+        DeudaEntity deuda = getDeuda(id, user);
+        aplicarDTO(deuda, deudaDTO);
+        return repository.save(deuda);
+    }
+
+    private void aplicarDTO(DeudaEntity deuda, DeudaDTO deudaDTO) {
+        deuda.setNombreDeuda(deudaDTO.nombreDeuda());
+        deuda.setImporte(deudaDTO.importe());
+        deuda.setCantidadPagada(deudaDTO.cantidadPagada());
+        deuda.setAcreedor(deudaDTO.acreedor());
+        deuda.setInteres(deudaDTO.interes());
+        deuda.setFechaVencimiento(deudaDTO.fechaVencimiento());
+    }
+
+    private void verificarPropiedad(DeudaEntity deuda, UserEntity user) {
+        if (!deuda.getUser().getId().equals(user.getId())) {
+            throw new AccessDeniedException("No tienes acceso a esta deuda");
+        }
+    }
+}

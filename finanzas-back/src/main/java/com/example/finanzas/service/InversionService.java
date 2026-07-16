@@ -1,0 +1,19 @@
+package com.example.finanzas.service;
+
+import com.example.finanzas.dto.inversion.ActualizarInversionDTO;
+import com.example.finanzas.dto.inversion.InversionDTO;
+import com.example.finanzas.model.InversionEntity;
+import com.example.finanzas.model.UserEntity;
+
+import java.util.List;
+
+public interface InversionService {
+
+    InversionEntity getInversionById(Long id, UserEntity user);
+
+    List<InversionEntity> getAllInversiones(UserEntity user);
+
+    InversionEntity add(InversionDTO inversionDTO, UserEntity user);
+
+    InversionEntity actualizar(Long id, ActualizarInversionDTO actualizarInversionDTO, UserEntity user);
+}
