@@ -9,6 +9,9 @@ import {
   useInversiones,
 } from '@/hooks/useFinance'
 import { useTheme } from '@/context/ThemeContext'
+import { useConfirm } from '@/components/ui/ConfirmProvider'
+import Skeleton from '@/components/ui/Skeleton'
+import { notifyOk, notifyError } from '@/lib/notify'
 import { PALETTE, chartTheme } from '@/lib/chartSetup'
 import { formatEur, formatPct } from '@/lib/format'
 import { apiErrorMessage } from '@/lib/api'
@@ -21,6 +24,7 @@ type Mode = 'nueva' | 'actualizar'
 
 export default function Inversiones() {
   const { theme } = useTheme()
+  const confirm = useConfirm()
   const { data: inversiones, isLoading, isError, error } = useInversiones()
   const { data: categorias } = useCategorias()
 
@@ -47,7 +51,35 @@ export default function Inversiones() {
   const [updAportacion, setUpdAportacion] = useState('')
   const [updValor, setUpdValor] = useState('')
 
-  if (isLoading) return <p style={{ color: 'var(--tx2)' }}>Cargando inversiones…</p>
+  if (isLoading) {
+    return (
+      <div>
+        <div className={s.header}>
+          <Skeleton width={160} height={26} />
+          <Skeleton width={360} height={14} style={{ marginTop: 8 }} />
+        </div>
+        <div className={s.kpis}>
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className={s.kpi}>
+              <Skeleton width={90} height={11} />
+              <Skeleton width={110} height={24} style={{ marginTop: 10 }} />
+            </div>
+          ))}
+        </div>
+        <div className={`card ${s.cardBlock}`}>
+          <Skeleton width={130} height={13} style={{ marginBottom: 16 }} />
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton
+              key={i}
+              width="100%"
+              height={34}
+              style={{ marginBottom: 8 }}
+            />
+          ))}
+        </div>
+      </div>
+    )
+  }
   if (isError) return <p style={{ color: 'var(--down)' }}>{apiErrorMessage(error)}</p>
 
   const list = inversiones ?? []
@@ -104,11 +136,13 @@ export default function Inversiones() {
         capitalAportado: a,
         capitalTotal: tot,
       })
+      notifyOk('Inversión creada')
       setCatName('')
       setAportado('')
       setTotal('')
     } catch (err) {
       setFormErr(apiErrorMessage(err))
+      notifyError(err)
     }
   }
 
@@ -130,10 +164,12 @@ export default function Inversiones() {
         ...(hasAp ? { aportacion: ap } : {}),
         ...(hasVal ? { valorActual: val } : {}),
       })
+      notifyOk('Inversión actualizada')
       setUpdAportacion('')
       setUpdValor('')
     } catch (err) {
       setFormErr(apiErrorMessage(err))
+      notifyError(err)
     }
   }
 
@@ -149,19 +185,27 @@ export default function Inversiones() {
   async function handleDelete() {
     if (!updId) return
     const inv = list.find((x) => x.id === Number(updId))
-    if (
-      !window.confirm(
-        `¿Eliminar la inversión "${inv?.categoriaNombre ?? `#${updId}`}"? No se puede deshacer.`,
-      )
-    )
-      return
+    const nombre = inv?.categoriaNombre ?? `#${updId}`
+    const ok = await confirm({
+      title: 'Eliminar inversión',
+      message: (
+        <>
+          ¿Seguro que quieres eliminar la inversión <strong>{nombre}</strong>? No
+          se puede deshacer.
+        </>
+      ),
+      confirmText: 'Eliminar',
+      variant: 'danger',
+    })
+    if (!ok) return
     try {
       await eliminarInversion.mutateAsync(Number(updId))
+      notifyOk('Inversión eliminada')
       setUpdId('')
       setUpdAportacion('')
       setUpdValor('')
     } catch (err) {
-      setFormErr(apiErrorMessage(err))
+      notifyError(err)
     }
   }
 

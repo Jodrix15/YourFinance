@@ -13,6 +13,9 @@ import {
   useEliminarDeuda,
 } from '@/hooks/useFinance'
 import { useTheme } from '@/context/ThemeContext'
+import { useConfirm } from '@/components/ui/ConfirmProvider'
+import Skeleton from '@/components/ui/Skeleton'
+import { notifyOk, notifyError } from '@/lib/notify'
 import { PALETTE, chartTheme } from '@/lib/chartSetup'
 import { formatEur, formatPct } from '@/lib/format'
 import { apiErrorMessage } from '@/lib/api'
@@ -45,6 +48,7 @@ const EMPTY = {
 
 export default function Deudas() {
   const { theme } = useTheme()
+  const confirm = useConfirm()
   const { data: deudas, isLoading, isError, error } = useDeudas()
   const crearDeuda = useCrearDeuda()
   const actualizarDeuda = useActualizarDeuda()
@@ -91,7 +95,32 @@ export default function Deudas() {
     }
   }, [selId, mode, deudas])
 
-  if (isLoading) return <p style={{ color: 'var(--tx2)' }}>Cargando deudas…</p>
+  if (isLoading) {
+    return (
+      <div>
+        <div className={s.header}>
+          <Skeleton width={140} height={26} />
+          <Skeleton width={320} height={14} style={{ marginTop: 8 }} />
+        </div>
+        <div className={s.kpis}>
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className={s.kpi}>
+              <Skeleton width={90} height={11} />
+              <Skeleton width={110} height={24} style={{ marginTop: 10 }} />
+            </div>
+          ))}
+        </div>
+        <div className={`card ${s.cardBlock}`}>
+          <Skeleton width={120} height={13} style={{ marginBottom: 16 }} />
+          <div style={{ display: 'flex', gap: 12 }}>
+            {Array.from({ length: 3 }).map((_, i) => (
+              <Skeleton key={i} width={340} height={168} radius="var(--r-lg)" />
+            ))}
+          </div>
+        </div>
+      </div>
+    )
+  }
   if (isError) return <p style={{ color: 'var(--down)' }}>{apiErrorMessage(error)}</p>
 
   const list: DeudaResponse[] = deudas ?? []
@@ -159,28 +188,38 @@ export default function Deudas() {
     try {
       if (mode === 'nueva') {
         await crearDeuda.mutateAsync(body)
+        notifyOk('Deuda creada')
       } else {
         if (!selId) return setFormErr('Selecciona una deuda.')
         await actualizarDeuda.mutateAsync({ id: Number(selId), ...body })
+        notifyOk('Deuda actualizada')
       }
       switchMode(mode)
     } catch (err) {
       setFormErr(apiErrorMessage(err))
+      notifyError(err)
     }
   }
 
   async function deleteDeuda(d: DeudaResponse) {
-    if (
-      !window.confirm(
-        `¿Eliminar la deuda "${d.nombreDeuda}"? Esta acción no se puede deshacer.`,
-      )
-    )
-      return
+    const ok = await confirm({
+      title: 'Eliminar deuda',
+      message: (
+        <>
+          ¿Seguro que quieres eliminar la deuda <strong>{d.nombreDeuda}</strong>?
+          Esta acción no se puede deshacer.
+        </>
+      ),
+      confirmText: 'Eliminar',
+      variant: 'danger',
+    })
+    if (!ok) return
     try {
       await eliminarDeuda.mutateAsync(d.id)
+      notifyOk('Deuda eliminada')
       if (Number(selId) === d.id) switchMode('actualizar')
     } catch (err) {
-      setFormErr(apiErrorMessage(err))
+      notifyError(err)
     }
   }
 
@@ -301,6 +340,7 @@ export default function Deudas() {
                   <button
                     type="button"
                     className={s.cardDeleteBtn}
+                    onMouseDown={(e) => e.stopPropagation()}
                     onClick={() => deleteDeuda(d)}
                     disabled={saving}
                   >

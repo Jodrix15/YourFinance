@@ -3,6 +3,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter } from 'react-router-dom'
 import { AuthProvider } from '@/context/AuthContext'
 import { ThemeProvider } from '@/context/ThemeContext'
+import { ConfirmProvider } from '@/components/ui/ConfirmProvider'
+import AppToaster from '@/components/ui/Toaster'
 import App from './App'
 import 'react-grid-layout/css/styles.css'
 import 'react-resizable/css/styles.css'
@@ -20,9 +22,12 @@ createRoot(document.getElementById('root')!).render(
   <QueryClientProvider client={queryClient}>
     <ThemeProvider>
       <AuthProvider>
-        <BrowserRouter>
-          <App />
-        </BrowserRouter>
+        <ConfirmProvider>
+          <BrowserRouter>
+            <App />
+          </BrowserRouter>
+          <AppToaster />
+        </ConfirmProvider>
       </AuthProvider>
     </ThemeProvider>
   </QueryClientProvider>,

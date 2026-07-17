@@ -7,6 +7,9 @@ import {
   useEliminarTransaccion,
   useTransacciones,
 } from '@/hooks/useFinance'
+import { useConfirm } from '@/components/ui/ConfirmProvider'
+import Skeleton from '@/components/ui/Skeleton'
+import { notifyOk, notifyError } from '@/lib/notify'
 import { formatEur } from '@/lib/format'
 import { apiErrorMessage } from '@/lib/api'
 import type { CuentaResponse, TipoMovimiento, TransaccionResponse } from '@/types/api'
@@ -33,6 +36,7 @@ interface Props { cuenta: CuentaResponse; onBack: () => void }
 export default function AccountMovimientos({ cuenta, onBack }: Props) {
   const { data: movs, isLoading, isError, error } = useTransacciones(cuenta.id)
   const { data: categorias } = useCategorias()
+  const confirm = useConfirm()
   const crear = useCrearTransaccion()
   const actualizar = useActualizarTransaccion()
   const eliminar = useEliminarTransaccion()
@@ -69,7 +73,33 @@ export default function AccountMovimientos({ cuenta, onBack }: Props) {
       .sort((a, b) => (b.fechaTransaccion ?? '').localeCompare(a.fechaTransaccion ?? ''))
   }, [movs, fTipo, fMes, fAnio, search])
 
-  if (isLoading) return <p style={{ color: 'var(--tx2)' }}>Cargando movimientos…</p>
+  if (isLoading) {
+    return (
+      <div>
+        <div className={s.header} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <div>
+            <Skeleton width={180} height={24} />
+            <Skeleton width={200} height={13} style={{ marginTop: 6 }} />
+          </div>
+          <Skeleton width={90} height={32} radius="var(--r-md)" />
+        </div>
+        <div className={s.kpis}>
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className={s.kpi}>
+              <Skeleton width={90} height={11} />
+              <Skeleton width={110} height={24} style={{ marginTop: 10 }} />
+            </div>
+          ))}
+        </div>
+        <div className={`card ${s.cardBlock}`}>
+          <Skeleton width={140} height={13} style={{ marginBottom: 16 }} />
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Skeleton key={i} width="100%" height={34} style={{ marginBottom: 8 }} />
+          ))}
+        </div>
+      </div>
+    )
+  }
   if (isError) return <p style={{ color: 'var(--down)' }}>{apiErrorMessage(error)}</p>
 
   const ingresos = sum(filtered.filter((m) => m.tipoMovimiento === 'INGRESO').map((m) => m.importe))
@@ -108,12 +138,19 @@ export default function AccountMovimientos({ cuenta, onBack }: Props) {
 
   async function handleDelete() {
     if (!selId) return
-    if (!window.confirm('¿Eliminar este movimiento? No se puede deshacer.')) return
+    const ok = await confirm({
+      title: 'Eliminar movimiento',
+      message: '¿Seguro que quieres eliminar este movimiento? No se puede deshacer.',
+      confirmText: 'Eliminar',
+      variant: 'danger',
+    })
+    if (!ok) return
     try {
       await eliminar.mutateAsync({ cuentaId: cuenta.id, id: Number(selId) })
+      notifyOk('Movimiento eliminado')
       resetForm()
     } catch (err) {
-      setFormErr(apiErrorMessage(err))
+      notifyError(err)
     }
   }
 
@@ -136,11 +173,17 @@ export default function AccountMovimientos({ cuenta, onBack }: Props) {
     try {
       const categoriaId = await resolverCategoriaId(catName)
       const dto = { tipoMovimiento: form.tipo, categoriaId, importe, descripcion: form.descripcion.trim() || undefined, fecha: form.fecha }
-      if (mode === 'actualizar') await actualizar.mutateAsync({ cuentaId: cuenta.id, id: Number(selId), ...dto })
-      else await crear.mutateAsync({ cuentaId: cuenta.id, ...dto })
+      if (mode === 'actualizar') {
+        await actualizar.mutateAsync({ cuentaId: cuenta.id, id: Number(selId), ...dto })
+        notifyOk('Transacción actualizada')
+      } else {
+        await crear.mutateAsync({ cuentaId: cuenta.id, ...dto })
+        notifyOk('Transacción añadida')
+      }
       resetForm()
     } catch (err) {
       setFormErr(apiErrorMessage(err))
+      notifyError(err)
     }
   }
 

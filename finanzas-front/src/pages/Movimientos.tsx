@@ -7,6 +7,8 @@ import {
   useCuentas,
   useMovimientos,
 } from '@/hooks/useFinance'
+import Skeleton from '@/components/ui/Skeleton'
+import { notifyOk, notifyError } from '@/lib/notify'
 import { formatEur } from '@/lib/format'
 import { apiErrorMessage } from '@/lib/api'
 import type { Movimiento, TipoMovimiento } from '@/types/api'
@@ -79,7 +81,30 @@ export default function Movimientos() {
       .sort((a, b) => (b.fechaTransaccion ?? '').localeCompare(a.fechaTransaccion ?? ''))
   }, [movs, fTipo, fCuenta, search])
 
-  if (isLoading) return <p style={{ color: 'var(--tx2)' }}>Cargando movimientos…</p>
+  if (isLoading) {
+    return (
+      <div>
+        <div className={s.header}>
+          <Skeleton width={170} height={26} />
+          <Skeleton width={360} height={14} style={{ marginTop: 8 }} />
+        </div>
+        <div className={s.kpis}>
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className={s.kpi}>
+              <Skeleton width={90} height={11} />
+              <Skeleton width={110} height={24} style={{ marginTop: 10 }} />
+            </div>
+          ))}
+        </div>
+        <div className={`card ${s.cardBlock}`}>
+          <Skeleton width={140} height={13} style={{ marginBottom: 16 }} />
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Skeleton key={i} width="100%" height={34} style={{ marginBottom: 8 }} />
+          ))}
+        </div>
+      </div>
+    )
+  }
   if (isError) return <p style={{ color: 'var(--down)' }}>{apiErrorMessage(error)}</p>
 
   const ingresos = sum(
@@ -147,12 +172,15 @@ export default function Movimientos() {
       }
       if (editing) {
         await actualizar.mutateAsync({ cuentaId: editing.cuentaId, id: editing.id, ...dto })
+        notifyOk('Movimiento actualizado')
       } else {
         await crear.mutateAsync({ cuentaId: Number(form.cuentaId), ...dto })
+        notifyOk('Movimiento añadido')
       }
       cancelEdit()
     } catch (err) {
       setFormErr(apiErrorMessage(err))
+      notifyError(err)
     }
   }
 

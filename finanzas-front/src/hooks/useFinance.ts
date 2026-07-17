@@ -7,7 +7,10 @@ import type {
   CrearGasto,
   CuentaDTO,
   DeudaDTO,
+  DeudaResponse,
+  GastoRecurrenteResponse,
   InversionDTO,
+  InversionResponse,
   NuevoPrecioRequest,
   TransaccionDTO,
 } from '@/types/api'
@@ -112,7 +115,20 @@ export function useEliminarInversion() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: number) => financeApi.eliminarInversion(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['inversiones'] }),
+    // Borrado optimista: quitamos la inversión de la lista al instante y la
+    // restauramos si la API falla.
+    onMutate: async (id: number) => {
+      await qc.cancelQueries({ queryKey: ['inversiones'] })
+      const prev = qc.getQueryData<InversionResponse[]>(['inversiones'])
+      qc.setQueryData<InversionResponse[]>(['inversiones'], (old) =>
+        (old ?? []).filter((i) => i.id !== id),
+      )
+      return { prev }
+    },
+    onError: (_err, _id, ctx) => {
+      if (ctx?.prev) qc.setQueryData(['inversiones'], ctx.prev)
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ['inversiones'] }),
   })
 }
 
@@ -145,7 +161,20 @@ export function useEliminarDeuda() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: number) => financeApi.eliminarDeuda(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['deudas'] }),
+    // Borrado optimista: quitamos la deuda de la lista al instante y la
+    // restauramos si la API falla.
+    onMutate: async (id: number) => {
+      await qc.cancelQueries({ queryKey: ['deudas'] })
+      const prev = qc.getQueryData<DeudaResponse[]>(['deudas'])
+      qc.setQueryData<DeudaResponse[]>(['deudas'], (old) =>
+        (old ?? []).filter((d) => d.id !== id),
+      )
+      return { prev }
+    },
+    onError: (_err, _id, ctx) => {
+      if (ctx?.prev) qc.setQueryData(['deudas'], ctx.prev)
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ['deudas'] }),
   })
 }
 
@@ -179,6 +208,19 @@ export function useEliminarRecurrente() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: number) => financeApi.removeRecurrente(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['recurrentes'] }),
+    // Borrado optimista: quitamos el recurrente de la lista al instante y lo
+    // restauramos si la API falla.
+    onMutate: async (id: number) => {
+      await qc.cancelQueries({ queryKey: ['recurrentes'] })
+      const prev = qc.getQueryData<GastoRecurrenteResponse[]>(['recurrentes'])
+      qc.setQueryData<GastoRecurrenteResponse[]>(['recurrentes'], (old) =>
+        (old ?? []).filter((r) => r.id !== id),
+      )
+      return { prev }
+    },
+    onError: (_err, _id, ctx) => {
+      if (ctx?.prev) qc.setQueryData(['recurrentes'], ctx.prev)
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ['recurrentes'] }),
   })
 }

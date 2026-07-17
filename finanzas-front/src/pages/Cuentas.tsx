@@ -1,6 +1,8 @@
 import { useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useCrearCuenta, useCuentas, useMovimientos } from '@/hooks/useFinance'
+import Skeleton from '@/components/ui/Skeleton'
+import { notifyOk, notifyError } from '@/lib/notify'
 import { formatEur } from '@/lib/format'
 import { apiErrorMessage } from '@/lib/api'
 import s from './Cuentas.module.css'
@@ -24,7 +26,32 @@ export default function Cuentas() {
   const [importe, setImporte] = useState('')
   const [formErr, setFormErr] = useState<string | null>(null)
 
-  if (isLoading) return <p style={{ color: 'var(--tx2)' }}>Cargando cuentas…</p>
+  if (isLoading) {
+    return (
+      <div>
+        <div className={s.header}>
+          <Skeleton width={130} height={26} />
+          <Skeleton width={360} height={14} style={{ marginTop: 8 }} />
+        </div>
+        <div className={s.kpis}>
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className={s.kpi}>
+              <Skeleton width={90} height={11} />
+              <Skeleton width={110} height={24} style={{ marginTop: 10 }} />
+            </div>
+          ))}
+        </div>
+        <div className={`card ${s.cardBlock}`}>
+          <Skeleton width={110} height={13} style={{ marginBottom: 16 }} />
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            {Array.from({ length: 3 }).map((_, i) => (
+              <Skeleton key={i} width={220} height={120} radius="var(--r-lg)" />
+            ))}
+          </div>
+        </div>
+      </div>
+    )
+  }
   if (isError) return <p style={{ color: 'var(--down)' }}>{apiErrorMessage(error)}</p>
 
   const list = cuentas ?? []
@@ -48,10 +75,12 @@ export default function Cuentas() {
     if (Number.isNaN(imp)) return setFormErr('Indica el saldo inicial (puede ser 0).')
     try {
       await crearCuenta.mutateAsync({ nombreCuenta: nom, importe: imp })
+      notifyOk('Cuenta creada')
       setNombre('')
       setImporte('')
     } catch (err) {
       setFormErr(apiErrorMessage(err))
+      notifyError(err)
     }
   }
 

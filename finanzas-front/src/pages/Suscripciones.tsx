@@ -10,6 +10,10 @@ import {
   useRecurrentes,
 } from '@/hooks/useFinance'
 import { useTheme } from '@/context/ThemeContext'
+import Modal from '@/components/ui/Modal'
+import { useConfirm } from '@/components/ui/ConfirmProvider'
+import Skeleton from '@/components/ui/Skeleton'
+import { notifyOk, notifyError } from '@/lib/notify'
 import { chartTheme } from '@/lib/chartSetup'
 import { formatEur } from '@/lib/format'
 import { apiErrorMessage } from '@/lib/api'
@@ -39,6 +43,7 @@ const EMPTY = {
 
 export default function Suscripciones() {
   const { theme } = useTheme()
+  const confirm = useConfirm()
   const { data: recurrentes, isLoading, isError, error } = useRecurrentes()
   const { data: categorias } = useCategorias()
 
@@ -59,7 +64,32 @@ export default function Suscripciones() {
   const [formErr, setFormErr] = useState<string | null>(null)
   const [detailSub, setDetailSub] = useState<GastoRecurrenteResponse | null>(null)
 
-  if (isLoading) return <p style={{ color: 'var(--tx2)' }}>Cargando suscripciones…</p>
+  if (isLoading) {
+    return (
+      <div>
+        <div className={s.header}>
+          <Skeleton width={180} height={26} />
+          <Skeleton width={340} height={14} style={{ marginTop: 8 }} />
+        </div>
+        <div className={s.kpis}>
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className={s.kpi}>
+              <Skeleton width={90} height={11} />
+              <Skeleton width={110} height={24} style={{ marginTop: 10 }} />
+            </div>
+          ))}
+        </div>
+        <div className={`card ${s.cardBlock}`}>
+          <Skeleton width={160} height={13} style={{ marginBottom: 16 }} />
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            {Array.from({ length: 3 }).map((_, i) => (
+              <Skeleton key={i} width={260} height={150} radius="var(--r-lg)" />
+            ))}
+          </div>
+        </div>
+      </div>
+    )
+  }
   if (isError) return <p style={{ color: 'var(--down)' }}>{apiErrorMessage(error)}</p>
 
   const subs = (recurrentes ?? []).filter((r) => r.tipoPago === 'SUSCRIPCION')
@@ -146,24 +176,33 @@ export default function Suscripciones() {
           })
         }
       }
+      notifyOk(mode === 'nueva' ? 'Suscripción creada' : 'Suscripción actualizada')
       switchMode(mode)
     } catch (err) {
       setFormErr(apiErrorMessage(err))
+      notifyError(err)
     }
   }
 
   async function deleteSub(sub: GastoRecurrenteResponse) {
-    if (
-      !window.confirm(
-        `¿Eliminar la suscripción "${sub.nombre}"? Esta acción no se puede deshacer.`,
-      )
-    )
-      return
+    const ok = await confirm({
+      title: 'Eliminar suscripción',
+      message: (
+        <>
+          ¿Seguro que quieres eliminar <strong>{sub.nombre}</strong>? Esta acción
+          no se puede deshacer.
+        </>
+      ),
+      confirmText: 'Eliminar',
+      variant: 'danger',
+    })
+    if (!ok) return
     try {
       await eliminarRecurrente.mutateAsync(sub.id)
+      notifyOk('Suscripción eliminada')
       if (Number(selId) === sub.id) switchMode('actualizar')
     } catch (err) {
-      setFormErr(apiErrorMessage(err))
+      notifyError(err)
     }
   }
 
@@ -393,9 +432,9 @@ export default function Suscripciones() {
         </form>
       </div>
 
-      {detailSub && (
-        <div className={s.overlay} onClick={() => setDetailSub(null)}>
-          <div className={s.modal} onClick={(e) => e.stopPropagation()}>
+      <Modal open={detailSub !== null} onClose={() => setDetailSub(null)} maxWidth={560}>
+        {detailSub && (
+          <>
             <div className={s.modalHead}>
               <div>
                 <div className={s.modalTitle}>{detailSub.nombre}</div>
@@ -471,9 +510,9 @@ export default function Suscripciones() {
                 )}
               </>
             )}
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </Modal>
     </div>
   )
 }

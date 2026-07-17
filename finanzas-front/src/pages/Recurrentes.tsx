@@ -10,6 +10,10 @@ import {
   useRecurrentes,
 } from '@/hooks/useFinance'
 import { useTheme } from '@/context/ThemeContext'
+import Modal from '@/components/ui/Modal'
+import { useConfirm } from '@/components/ui/ConfirmProvider'
+import Skeleton from '@/components/ui/Skeleton'
+import { notifyOk, notifyError } from '@/lib/notify'
 import { chartTheme } from '@/lib/chartSetup'
 import { formatEur } from '@/lib/format'
 import { apiErrorMessage } from '@/lib/api'
@@ -39,6 +43,7 @@ const EMPTY = {
 
 export default function Recurrentes() {
   const { theme } = useTheme()
+  const confirm = useConfirm()
   const { data: recurrentesData, isLoading, isError, error } = useRecurrentes()
   const { data: categorias } = useCategorias()
 
@@ -59,7 +64,32 @@ export default function Recurrentes() {
   const [formErr, setFormErr] = useState<string | null>(null)
   const [detail, setDetail] = useState<GastoRecurrenteResponse | null>(null)
 
-  if (isLoading) return <p style={{ color: 'var(--tx2)' }}>Cargando gastos recurrentes…</p>
+  if (isLoading) {
+    return (
+      <div>
+        <div className={s.header}>
+          <Skeleton width={200} height={26} />
+          <Skeleton width={280} height={14} style={{ marginTop: 8 }} />
+        </div>
+        <div className={s.kpis}>
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className={s.kpi}>
+              <Skeleton width={90} height={11} />
+              <Skeleton width={110} height={24} style={{ marginTop: 10 }} />
+            </div>
+          ))}
+        </div>
+        <div className={`card ${s.cardBlock}`}>
+          <Skeleton width={180} height={13} style={{ marginBottom: 16 }} />
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            {Array.from({ length: 3 }).map((_, i) => (
+              <Skeleton key={i} width={260} height={150} radius="var(--r-lg)" />
+            ))}
+          </div>
+        </div>
+      </div>
+    )
+  }
   if (isError) return <p style={{ color: 'var(--down)' }}>{apiErrorMessage(error)}</p>
 
   const recs = (recurrentesData ?? []).filter((r) => r.tipoPago === 'RECURRENTE')
@@ -198,24 +228,33 @@ export default function Recurrentes() {
           })
         }
       }
+      notifyOk(mode === 'nueva' ? 'Gasto recurrente creado' : 'Gasto recurrente actualizado')
       switchMode(mode)
     } catch (err) {
       setFormErr(apiErrorMessage(err))
+      notifyError(err)
     }
   }
 
   async function deleteRec(rec: GastoRecurrenteResponse) {
-    if (
-      !window.confirm(
-        `¿Eliminar el gasto recurrente "${rec.nombre}"? Esta acción no se puede deshacer.`,
-      )
-    )
-      return
+    const ok = await confirm({
+      title: 'Eliminar gasto recurrente',
+      message: (
+        <>
+          ¿Seguro que quieres eliminar <strong>{rec.nombre}</strong>? Esta acción
+          no se puede deshacer.
+        </>
+      ),
+      confirmText: 'Eliminar',
+      variant: 'danger',
+    })
+    if (!ok) return
     try {
       await eliminarRecurrente.mutateAsync(rec.id)
+      notifyOk('Gasto recurrente eliminado')
       if (Number(selId) === rec.id) switchMode('actualizar')
     } catch (err) {
-      setFormErr(apiErrorMessage(err))
+      notifyError(err)
     }
   }
 
@@ -464,9 +503,9 @@ export default function Recurrentes() {
         </form>
       </div>
 
-      {detail && (
-        <div className={s.overlay} onClick={() => setDetail(null)}>
-          <div className={s.modal} onClick={(e) => e.stopPropagation()}>
+      <Modal open={detail !== null} onClose={() => setDetail(null)} maxWidth={560}>
+        {detail && (
+          <>
             <div className={s.modalHead}>
               <div>
                 <div className={s.modalTitle}>{detail.nombre}</div>
@@ -538,9 +577,9 @@ export default function Recurrentes() {
                 )}
               </>
             )}
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </Modal>
     </div>
   )
 }

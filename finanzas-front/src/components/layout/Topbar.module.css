@@ -50,6 +50,9 @@
   flex: 1;
 }
 .navBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 7px 12px;
   font-size: 13px;
   font-weight: 500;
@@ -60,6 +63,12 @@
   cursor: pointer;
   white-space: nowrap;
   transition: all 0.15s;
+}
+.navIcon {
+  width: 15px;
+  height: 15px;
+  fill: currentColor;
+  flex-shrink: 0;
 }
 .navBtn:hover {
   color: var(--tx1);
