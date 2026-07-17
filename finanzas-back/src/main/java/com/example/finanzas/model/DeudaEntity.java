@@ -1,5 +1,6 @@
 package com.example.finanzas.model;
 
+import com.example.finanzas.model.enums.FrecuenciaEnum;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -37,6 +38,11 @@ public class DeudaEntity {
     private String acreedor;
 
     private BigDecimal interes;
+
+    @Enumerated(EnumType.STRING)
+    private FrecuenciaEnum frecuencia;
+
+    private BigDecimal cuota = BigDecimal.ZERO;
 
     private LocalDate fechaVencimiento;
 

@@ -1,6 +1,7 @@
 package com.example.finanzas.dto.Deuda;
 
 import com.example.finanzas.model.DeudaEntity;
+import com.example.finanzas.model.enums.FrecuenciaEnum;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -13,6 +14,8 @@ public record DeudaDTOResponse(
     BigDecimal importeTotal,
     BigDecimal cantidadPagada,
     String acreedor,
+    BigDecimal cuota,
+    FrecuenciaEnum frecuencia,
     BigDecimal interes,
     LocalDate fechaVencimiento
 ) {
@@ -25,6 +28,8 @@ public record DeudaDTOResponse(
                 deuda.getImporteTotal(),
                 deuda.getCantidadPagada(),
                 deuda.getAcreedor(),
+                deuda.getCuota(),
+                deuda.getFrecuencia(),
                 deuda.getInteres(),
                 deuda.getFechaVencimiento()
         );
