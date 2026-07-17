@@ -16,6 +16,7 @@ import type {
   LoginResponse,
   Movimiento,
   NuevoPrecioRequest,
+  PatrimonioSnapshot,
   RecurrentePrecioResponse,
   RegisterRequest,
   TransaccionDTO,
@@ -94,4 +95,8 @@ export const financeApi = {
   categorias: () => api.get<CategoriaResponse[]>('/api/categoria').then((r) => r.data),
   crearCategoria: (body: CrearCategoria) =>
     api.post<CategoriaResponse>('/api/categoria', body).then((r) => r.data),
+  patrimonioHistorico: () =>
+    api
+      .get<PatrimonioSnapshot[]>('/api/dashboard/patrimonio/historico')
+      .then((r) => r.data),
 }

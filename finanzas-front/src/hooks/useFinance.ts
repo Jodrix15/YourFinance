@@ -39,6 +39,13 @@ export function useMovimientos() {
   return useQuery({ queryKey: ['movimientos'], queryFn: financeApi.movimientos })
 }
 
+export function usePatrimonioHistorico() {
+  return useQuery({
+    queryKey: ['patrimonioHistorico'],
+    queryFn: financeApi.patrimonioHistorico,
+  })
+}
+
 export function useTransacciones(cuentaId: number) {
   return useQuery({
     queryKey: ['transacciones', cuentaId],

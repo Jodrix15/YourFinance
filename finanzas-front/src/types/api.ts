@@ -155,3 +155,12 @@ export interface CrearCategoria {
   nombre: string
   tipo: TipoMovimiento
 }
+
+// Foto mensual del patrimonio (mes = primer día del mes, 'YYYY-MM-DD')
+export interface PatrimonioSnapshot {
+  mes: string
+  patrimonioNeto: number
+  cuentas: number
+  inversiones: number
+  deudas: number
+}

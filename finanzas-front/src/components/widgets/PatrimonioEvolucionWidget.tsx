@@ -1,13 +1,11 @@
 import { useState } from 'react'
 import { Line } from 'react-chartjs-2'
-import { useCuentas, useDeudas, useInversiones, useMovimientos } from '@/hooks/useFinance'
+import { usePatrimonioHistorico } from '@/hooks/useFinance'
 import { useTheme } from '@/context/ThemeContext'
 import { chartTheme } from '@/lib/chartSetup'
 import { formatEur } from '@/lib/format'
 import { WidgetError, WidgetLoading } from './WidgetState'
-import type { Movimiento } from '@/types/api'
 
-const sum = (arr: number[]) => arr.reduce((a, b) => a + Number(b || 0), 0)
 const pad = (n: number) => String(n).padStart(2, '0')
 
 type Range = 'YTD' | '1A' | '5A' | 'MAX'
@@ -18,55 +16,80 @@ const RANGES: [Range, string][] = [
   ['MAX', 'Máx'],
 ]
 
-// Efecto de un movimiento sobre la caja (gasto/inversión resta, ingreso suma)
-function signed(m: Movimiento): number {
-  const neg = m.tipoMovimiento === 'GASTO' || m.tipoMovimiento === 'INVERSION'
-  return neg ? -Number(m.importe || 0) : Number(m.importe || 0)
-}
-
 export default function PatrimonioEvolucionWidget() {
   const { theme } = useTheme()
   const [range, setRange] = useState<Range>('1A')
+  const hist = usePatrimonioHistorico()
 
-  const cu = useCuentas()
-  const inv = useInversiones()
-  const de = useDeudas()
-  const mo = useMovimientos()
+  if (hist.isLoading) return <WidgetLoading />
+  if (hist.isError) return <WidgetError />
 
-  if (cu.isLoading || inv.isLoading || de.isLoading || mo.isLoading) return <WidgetLoading />
-  if (cu.isError || inv.isError || de.isError || mo.isError) return <WidgetError />
+  const snaps = hist.data ?? []
 
-  const cashNow = sum((cu.data ?? []).map((c) => c.importe))
-  const invNow = sum((inv.data ?? []).map((i) => i.capitalTotal))
-  const debtNow = sum((de.data ?? []).map((d) => d.cantidadPendiente))
-  const patNow = cashNow + invNow - debtNow
-  const movs = mo.data ?? []
-
+  // Fecha de corte según el rango (los snapshots vienen ordenados por mes asc,
+  // con mes = 'YYYY-MM-DD' del primer día). Comparamos como cadenas ISO.
   const now = new Date()
-  let months: number
-  if (range === 'YTD') months = now.getMonth()
-  else if (range === '1A') months = 12
-  else if (range === '5A') months = 60
-  else {
-    const dates = movs.map((m) => m.fechaTransaccion).filter(Boolean).sort()
-    months = dates.length
-      ? (now.getFullYear() - new Date(dates[0]).getFullYear()) * 12 +
-        (now.getMonth() - new Date(dates[0]).getMonth())
-      : 12
+  const monthsAgo = (n: number) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - n, 1)
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-01`
   }
-  months = Math.max(1, months)
+  let cutoff: string | null
+  if (range === 'YTD') cutoff = `${now.getFullYear()}-01-01`
+  else if (range === '1A') cutoff = monthsAgo(11)
+  else if (range === '5A') cutoff = monthsAgo(59)
+  else cutoff = null
 
-  const labels: string[] = []
-  const values: number[] = []
-  for (let i = months; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
-    const next = new Date(d.getFullYear(), d.getMonth() + 1, 1)
-    const cut = `${next.getFullYear()}-${pad(next.getMonth() + 1)}-01`
-    // Patrimonio a fin de ese mes = actual − movimientos posteriores.
-    const future = sum(movs.filter((m) => (m.fechaTransaccion ?? '') >= cut).map(signed))
-    labels.push(`${pad(d.getMonth() + 1)}/${String(d.getFullYear()).slice(2)}`)
-    values.push(patNow - future)
+  const filtered = snaps.filter((s) => !cutoff || s.mes >= cutoff)
+
+  const rangeButtons = (
+    <div style={{ display: 'flex', gap: 4, marginBottom: 8, flexShrink: 0 }}>
+      {RANGES.map(([r, label]) => (
+        <button
+          key={r}
+          type="button"
+          onClick={() => setRange(r)}
+          style={{
+            padding: '4px 10px',
+            fontSize: 12,
+            fontWeight: 500,
+            cursor: 'pointer',
+            border: '1px solid var(--border2)',
+            borderRadius: 'var(--r-sm)',
+            background: range === r ? 'var(--accent)' : 'var(--bg2)',
+            color: range === r ? '#fff' : 'var(--tx2)',
+          }}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  )
+
+  if (filtered.length === 0) {
+    return (
+      <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+        {rangeButtons}
+        <div
+          style={{
+            flex: 1,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            textAlign: 'center',
+            color: 'var(--tx3)',
+            fontSize: 13,
+            padding: '0 12px',
+          }}
+        >
+          Aún no hay histórico de patrimonio. Se registra una foto cada mes; la
+          curva se irá construyendo con el tiempo.
+        </div>
+      </div>
+    )
   }
+
+  const labels = filtered.map((s) => `${s.mes.slice(5, 7)}/${s.mes.slice(2, 4)}`)
+  const values = filtered.map((s) => s.patrimonioNeto)
 
   const t = chartTheme()
   const data = {
@@ -79,7 +102,8 @@ export default function PatrimonioEvolucionWidget() {
         backgroundColor: 'rgba(47, 129, 247, 0.12)',
         fill: true,
         tension: 0.25,
-        pointRadius: 0,
+        pointRadius: filtered.length <= 2 ? 4 : 0,
+        pointBackgroundColor: '#2f81f7',
         borderWidth: 2,
       },
     ],
@@ -87,27 +111,7 @@ export default function PatrimonioEvolucionWidget() {
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ display: 'flex', gap: 4, marginBottom: 8, flexShrink: 0 }}>
-        {RANGES.map(([r, label]) => (
-          <button
-            key={r}
-            type="button"
-            onClick={() => setRange(r)}
-            style={{
-              padding: '4px 10px',
-              fontSize: 12,
-              fontWeight: 500,
-              cursor: 'pointer',
-              border: '1px solid var(--border2)',
-              borderRadius: 'var(--r-sm)',
-              background: range === r ? 'var(--accent)' : 'var(--bg2)',
-              color: range === r ? '#fff' : 'var(--tx2)',
-            }}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      {rangeButtons}
       <div style={{ flex: 1, minHeight: 0 }}>
         <Line
           key={`${theme}-${range}`}
