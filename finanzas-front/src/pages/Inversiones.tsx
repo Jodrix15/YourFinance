@@ -5,6 +5,7 @@ import {
   useCategorias,
   useCrearCategoria,
   useCrearInversion,
+  useEliminarInversion,
   useInversiones,
 } from '@/hooks/useFinance'
 import { useTheme } from '@/context/ThemeContext'
@@ -25,6 +26,7 @@ export default function Inversiones() {
 
   const crearInversion = useCrearInversion()
   const actualizarInversion = useActualizarInversion()
+  const eliminarInversion = useEliminarInversion()
   const crearCategoria = useCrearCategoria()
 
   const invCats = useMemo(
@@ -135,8 +137,39 @@ export default function Inversiones() {
     }
   }
 
+  function selectInversion(id: number) {
+    setMode('actualizar')
+    setUpdId(String(id))
+    setUpdAportacion('')
+    setUpdValor('')
+    setFormErr(null)
+    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' })
+  }
+
+  async function handleDelete() {
+    if (!updId) return
+    const inv = list.find((x) => x.id === Number(updId))
+    if (
+      !window.confirm(
+        `¿Eliminar la inversión "${inv?.categoriaNombre ?? `#${updId}`}"? No se puede deshacer.`,
+      )
+    )
+      return
+    try {
+      await eliminarInversion.mutateAsync(Number(updId))
+      setUpdId('')
+      setUpdAportacion('')
+      setUpdValor('')
+    } catch (err) {
+      setFormErr(apiErrorMessage(err))
+    }
+  }
+
   const saving =
-    crearInversion.isPending || crearCategoria.isPending || actualizarInversion.isPending
+    crearInversion.isPending ||
+    crearCategoria.isPending ||
+    actualizarInversion.isPending ||
+    eliminarInversion.isPending
 
   return (
     <div>
@@ -259,7 +292,7 @@ export default function Inversiones() {
             </thead>
             <tbody>
               {list.map((i) => (
-                <tr key={i.id}>
+                <tr key={i.id} onClick={() => selectInversion(i.id)}>
                   <td>{i.categoriaNombre ?? `#${i.id}`}</td>
                   <td className={s.center}>{formatEur(i.capitalAportado, true)}</td>
                   <td className={s.center}>{formatEur(i.capitalTotal, true)}</td>
@@ -400,9 +433,30 @@ export default function Inversiones() {
                   La aportación se suma al capital; el valor actual fija el total del momento (la plusvalía se calcula sola).
                 </p>
                 {formErr && <p className={s.error}>{formErr}</p>}
-                <button className={s.btn} type="submit" disabled={saving} style={{ marginTop: 4 }}>
-                  {saving ? 'Guardando…' : 'Actualizar inversión'}
-                </button>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 4 }}>
+                  <button className={s.btn} type="submit" disabled={saving}>
+                    {saving ? 'Guardando…' : 'Actualizar inversión'}
+                  </button>
+                  {updId && (
+                    <button
+                      type="button"
+                      onClick={handleDelete}
+                      disabled={saving}
+                      style={{
+                        padding: '9px 16px',
+                        fontSize: 14,
+                        fontWeight: 600,
+                        background: 'transparent',
+                        color: 'var(--down)',
+                        border: '1px solid var(--down)',
+                        borderRadius: 'var(--r-md)',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Eliminar
+                    </button>
+                  )}
+                </div>
               </>
             )}
           </form>

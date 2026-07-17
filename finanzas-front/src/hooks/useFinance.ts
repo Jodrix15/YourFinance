@@ -108,6 +108,14 @@ export function useActualizarInversion() {
   })
 }
 
+export function useEliminarInversion() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => financeApi.eliminarInversion(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['inversiones'] }),
+  })
+}
+
 export function useCrearCategoria() {
   const qc = useQueryClient()
   return useMutation({
@@ -129,6 +137,14 @@ export function useActualizarDeuda() {
   return useMutation({
     mutationFn: ({ id, ...body }: { id: number } & DeudaDTO) =>
       financeApi.actualizarDeuda(id, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['deudas'] }),
+  })
+}
+
+export function useEliminarDeuda() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => financeApi.eliminarDeuda(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['deudas'] }),
   })
 }
@@ -155,6 +171,14 @@ export function useNuevoPrecioRecurrente() {
   return useMutation({
     mutationFn: ({ id, ...body }: { id: number } & NuevoPrecioRequest) =>
       financeApi.nuevoPrecioRecurrente(id, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['recurrentes'] }),
+  })
+}
+
+export function useEliminarRecurrente() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => financeApi.removeRecurrente(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['recurrentes'] }),
   })
 }

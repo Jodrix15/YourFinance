@@ -5,6 +5,7 @@ import {
   useCategorias,
   useCrearCategoria,
   useCrearRecurrente,
+  useEliminarRecurrente,
   useNuevoPrecioRecurrente,
   useRecurrentes,
 } from '@/hooks/useFinance'
@@ -44,6 +45,7 @@ export default function Suscripciones() {
   const crearRecurrente = useCrearRecurrente()
   const actualizarRecurrente = useActualizarRecurrente()
   const nuevoPrecio = useNuevoPrecioRecurrente()
+  const eliminarRecurrente = useEliminarRecurrente()
   const crearCategoria = useCrearCategoria()
 
   const gastoCats = useMemo(
@@ -150,10 +152,26 @@ export default function Suscripciones() {
     }
   }
 
+  async function deleteSub(sub: GastoRecurrenteResponse) {
+    if (
+      !window.confirm(
+        `¿Eliminar la suscripción "${sub.nombre}"? Esta acción no se puede deshacer.`,
+      )
+    )
+      return
+    try {
+      await eliminarRecurrente.mutateAsync(sub.id)
+      if (Number(selId) === sub.id) switchMode('actualizar')
+    } catch (err) {
+      setFormErr(apiErrorMessage(err))
+    }
+  }
+
   const saving =
     crearRecurrente.isPending ||
     actualizarRecurrente.isPending ||
     nuevoPrecio.isPending ||
+    eliminarRecurrente.isPending ||
     crearCategoria.isPending
 
   // ── Modal de historial ──
@@ -239,6 +257,17 @@ export default function Suscripciones() {
                 </div>
                 <div className={s.subMeta}>Próximo pago: {r.fechaProximoPago ?? '—'}</div>
                 <div className={s.clickHint}>Clic para ver el historial de precios →</div>
+                <button
+                  type="button"
+                  className={s.cardDeleteBtn}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    deleteSub(r)
+                  }}
+                  disabled={saving}
+                >
+                  Eliminar
+                </button>
               </div>
             ))}
           </div>

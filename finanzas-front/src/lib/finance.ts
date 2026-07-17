@@ -68,11 +68,15 @@ export const financeApi = {
     api.post<InversionResponse>('/api/inversion', body).then((r) => r.data),
   actualizarInversion: (id: number, body: ActualizarInversionDTO) =>
     api.put<InversionResponse>(`/api/inversion/${id}`, body).then((r) => r.data),
+  eliminarInversion: (id: number) =>
+    api.delete<void>(`/api/inversion/${id}`).then((r) => r.data),
   deudas: () => api.get<DeudaResponse[]>('/api/deuda').then((r) => r.data),
   crearDeuda: (body: DeudaDTO) =>
     api.post<DeudaResponse>('/api/deuda', body).then((r) => r.data),
   actualizarDeuda: (id: number, body: DeudaDTO) =>
     api.put<DeudaResponse>(`/api/deuda/${id}`, body).then((r) => r.data),
+  eliminarDeuda: (id: number) =>
+    api.delete<void>(`/api/deuda/${id}`).then((r) => r.data),
   recurrentes: () =>
     api.get<GastoRecurrenteResponse[]>('/api/recurrente').then((r) => r.data),
   crearRecurrente: (body: CrearGasto) =>

@@ -5,6 +5,7 @@ import {
   useCategorias,
   useCrearCategoria,
   useCrearRecurrente,
+  useEliminarRecurrente,
   useNuevoPrecioRecurrente,
   useRecurrentes,
 } from '@/hooks/useFinance'
@@ -44,6 +45,7 @@ export default function Recurrentes() {
   const crearRecurrente = useCrearRecurrente()
   const actualizarRecurrente = useActualizarRecurrente()
   const nuevoPrecio = useNuevoPrecioRecurrente()
+  const eliminarRecurrente = useEliminarRecurrente()
   const crearCategoria = useCrearCategoria()
 
   const gastoCats = useMemo(
@@ -202,10 +204,26 @@ export default function Recurrentes() {
     }
   }
 
+  async function deleteRec(rec: GastoRecurrenteResponse) {
+    if (
+      !window.confirm(
+        `¿Eliminar el gasto recurrente "${rec.nombre}"? Esta acción no se puede deshacer.`,
+      )
+    )
+      return
+    try {
+      await eliminarRecurrente.mutateAsync(rec.id)
+      if (Number(selId) === rec.id) switchMode('actualizar')
+    } catch (err) {
+      setFormErr(apiErrorMessage(err))
+    }
+  }
+
   const saving =
     crearRecurrente.isPending ||
     actualizarRecurrente.isPending ||
     nuevoPrecio.isPending ||
+    eliminarRecurrente.isPending ||
     crearCategoria.isPending
 
   return (
@@ -310,6 +328,17 @@ export default function Recurrentes() {
                 </div>
                 <div className={s.recMeta}>Próximo pago: {r.fechaProximoPago ?? '—'}</div>
                 <div className={s.clickHint}>Clic para ver el historial de precios →</div>
+                <button
+                  type="button"
+                  className={s.cardDeleteBtn}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    deleteRec(r)
+                  }}
+                  disabled={saving}
+                >
+                  Eliminar
+                </button>
               </div>
             ))}
           </div>

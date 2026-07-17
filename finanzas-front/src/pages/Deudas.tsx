@@ -6,7 +6,12 @@ import {
   type MouseEvent as ReactMouseEvent,
 } from 'react'
 import { Doughnut } from 'react-chartjs-2'
-import { useActualizarDeuda, useCrearDeuda, useDeudas } from '@/hooks/useFinance'
+import {
+  useActualizarDeuda,
+  useCrearDeuda,
+  useDeudas,
+  useEliminarDeuda,
+} from '@/hooks/useFinance'
 import { useTheme } from '@/context/ThemeContext'
 import { PALETTE, chartTheme } from '@/lib/chartSetup'
 import { formatEur, formatPct } from '@/lib/format'
@@ -43,6 +48,7 @@ export default function Deudas() {
   const { data: deudas, isLoading, isError, error } = useDeudas()
   const crearDeuda = useCrearDeuda()
   const actualizarDeuda = useActualizarDeuda()
+  const eliminarDeuda = useEliminarDeuda()
 
   const [mode, setMode] = useState<Mode>('nueva')
   const [selId, setSelId] = useState('')
@@ -163,7 +169,23 @@ export default function Deudas() {
     }
   }
 
-  const saving = crearDeuda.isPending || actualizarDeuda.isPending
+  async function deleteDeuda(d: DeudaResponse) {
+    if (
+      !window.confirm(
+        `¿Eliminar la deuda "${d.nombreDeuda}"? Esta acción no se puede deshacer.`,
+      )
+    )
+      return
+    try {
+      await eliminarDeuda.mutateAsync(d.id)
+      if (Number(selId) === d.id) switchMode('actualizar')
+    } catch (err) {
+      setFormErr(apiErrorMessage(err))
+    }
+  }
+
+  const saving =
+    crearDeuda.isPending || actualizarDeuda.isPending || eliminarDeuda.isPending
 
   return (
     <div>
@@ -276,6 +298,14 @@ export default function Deudas() {
                     <span>Pagado {Math.round(pct)}%</span>
                     <span>Total {formatEur(totalDeuda)}</span>
                   </div>
+                  <button
+                    type="button"
+                    className={s.cardDeleteBtn}
+                    onClick={() => deleteDeuda(d)}
+                    disabled={saving}
+                  >
+                    Eliminar
+                  </button>
                 </div>
               )
             })}

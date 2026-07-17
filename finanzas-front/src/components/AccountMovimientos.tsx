@@ -25,6 +25,7 @@ const TIPO_LABEL: Record<TipoMovimiento, string> = { GASTO: 'Gasto', INGRESO: 'I
 const BADGE: Record<TipoMovimiento, string> = { GASTO: 'bGasto', INGRESO: 'bIngreso', INVERSION: 'bInversion' }
 const esNegativo = (t: TipoMovimiento) => t === 'GASTO' || t === 'INVERSION'
 
+type Mode = 'nueva' | 'actualizar'
 const EMPTY = { tipo: 'GASTO' as TipoMovimiento, catName: '', importe: '', descripcion: '', fecha: today() }
 
 interface Props { cuenta: CuentaResponse; onBack: () => void }
@@ -41,13 +42,18 @@ export default function AccountMovimientos({ cuenta, onBack }: Props) {
   const [fMes, setFMes] = useState(CUR_MES)
   const [fAnio, setFAnio] = useState(CUR_ANIO)
   const [search, setSearch] = useState('')
+  const [mode, setMode] = useState<Mode>('nueva')
+  const [selId, setSelId] = useState('')
   const [form, setForm] = useState({ ...EMPTY })
-  const [editing, setEditing] = useState<number | null>(null)
   const [formErr, setFormErr] = useState<string | null>(null)
 
   const catsDelTipo = useMemo(() => (categorias ?? []).filter((c) => c.tipo === form.tipo), [categorias, form.tipo])
   const anios = useMemo(
-    () => [...new Set([...(movs ?? []).map((m) => (m.fechaTransaccion ?? '').slice(0, 4)).filter(Boolean), String(new Date().getFullYear())])].sort().reverse(),
+    () => [...new Set([...(movs ?? []).map((m) => (m.fechaTransaccion ?? '').slice(0, 4)).filter(Boolean), CUR_ANIO])].sort().reverse(),
+    [movs],
+  )
+  const movsOrdenados = useMemo(
+    () => [...(movs ?? [])].sort((a, b) => (b.fechaTransaccion ?? '').localeCompare(a.fechaTransaccion ?? '')),
     [movs],
   )
   const filtered = useMemo(() => {
@@ -72,20 +78,40 @@ export default function AccountMovimientos({ cuenta, onBack }: Props) {
 
   function set<K extends keyof typeof form>(key: K, value: (typeof form)[K]) { setForm((f) => ({ ...f, [key]: value })) }
 
-  function startEdit(m: TransaccionResponse) {
-    setEditing(m.id)
+  function resetForm() {
+    setSelId('')
+    setForm({ ...EMPTY })
     setFormErr(null)
+  }
+  function switchMode(m: Mode) {
+    setMode(m)
+    resetForm()
+  }
+  function prefill(m: TransaccionResponse) {
     setForm({ tipo: m.tipoMovimiento, catName: m.categoriaNombre ?? '', importe: String(m.importe ?? ''), descripcion: m.descripcion ?? '', fecha: m.fechaTransaccion ?? today() })
+  }
+  function loadTransaccion(id: string) {
+    setSelId(id)
+    setFormErr(null)
+    const m = (movs ?? []).find((x) => x.id === Number(id))
+    if (m) prefill(m)
+    else setForm({ ...EMPTY })
+  }
+  // Clic en una fila del historial → abre "Actualizar" con esa transacción cargada.
+  function startEdit(m: TransaccionResponse) {
+    setMode('actualizar')
+    setSelId(String(m.id))
+    setFormErr(null)
+    prefill(m)
     window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' })
   }
-  function cancelEdit() { setEditing(null); setForm({ ...EMPTY }); setFormErr(null) }
 
   async function handleDelete() {
-    if (editing == null) return
+    if (!selId) return
     if (!window.confirm('¿Eliminar este movimiento? No se puede deshacer.')) return
     try {
-      await eliminar.mutateAsync({ cuentaId: cuenta.id, id: editing })
-      cancelEdit()
+      await eliminar.mutateAsync({ cuentaId: cuenta.id, id: Number(selId) })
+      resetForm()
     } catch (err) {
       setFormErr(apiErrorMessage(err))
     }
@@ -103,15 +129,16 @@ export default function AccountMovimientos({ cuenta, onBack }: Props) {
     setFormErr(null)
     const importe = num(form.importe)
     const catName = form.catName.trim()
+    if (mode === 'actualizar' && !selId) return setFormErr('Selecciona una transacción.')
     if (!catName) return setFormErr('Indica una categoría.')
     if (Number.isNaN(importe) || importe <= 0) return setFormErr('El importe debe ser mayor que 0.')
     if (!form.fecha) return setFormErr('Indica la fecha.')
     try {
       const categoriaId = await resolverCategoriaId(catName)
       const dto = { tipoMovimiento: form.tipo, categoriaId, importe, descripcion: form.descripcion.trim() || undefined, fecha: form.fecha }
-      if (editing != null) await actualizar.mutateAsync({ cuentaId: cuenta.id, id: editing, ...dto })
+      if (mode === 'actualizar') await actualizar.mutateAsync({ cuentaId: cuenta.id, id: Number(selId), ...dto })
       else await crear.mutateAsync({ cuentaId: cuenta.id, ...dto })
-      cancelEdit()
+      resetForm()
     } catch (err) {
       setFormErr(apiErrorMessage(err))
     }
@@ -171,47 +198,63 @@ export default function AccountMovimientos({ cuenta, onBack }: Props) {
         )}
       </div>
       <div className={`card ${s.cardBlock}`}>
-        <div className={s.formTitle}>
-          <div className="sec-title" style={{ marginBottom: 0 }}>{editing != null ? 'Editar movimiento' : 'Nuevo movimiento'}</div>
-          {editing != null && (<button type="button" className={s.btnGhost} onClick={cancelEdit}>+ Nuevo</button>)}
+        <div className={s.tabs}>
+          <button type="button" className={`${s.tab} ${mode === 'nueva' ? s.tabActive : ''}`} onClick={() => switchMode('nueva')}>Nueva transacción</button>
+          <button type="button" className={`${s.tab} ${mode === 'actualizar' ? s.tabActive : ''}`} onClick={() => switchMode('actualizar')}>Actualizar</button>
         </div>
         <form onSubmit={submit}>
-          <div className={s.row}>
-            <div className={s.field}>
-              <label>Tipo</label>
-              <select value={form.tipo} onChange={(e) => set('tipo', e.target.value as TipoMovimiento)}>
-                {tipoOptions.map((t) => (<option key={t} value={t}>{TIPO_LABEL[t]}</option>))}
-              </select>
+          {mode === 'actualizar' && (
+            <div className={s.row}>
+              <div className={s.field}>
+                <label>Transacción a actualizar</label>
+                <select value={selId} onChange={(e) => loadTransaccion(e.target.value)}>
+                  <option value="">Selecciona</option>
+                  {movsOrdenados.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.fechaTransaccion} · {m.descripcion || TIPO_LABEL[m.tipoMovimiento]} · {esNegativo(m.tipoMovimiento) ? '−' : '+'}{formatEur(m.importe, true)}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
-            <div className={s.field}>
-              <label>Categoría</label>
-              <input type="text" list="mov-cats" placeholder="Ej: Alimentación" value={form.catName} onChange={(e) => set('catName', e.target.value)} />
-              <datalist id="mov-cats">{catsDelTipo.map((c) => (<option key={c.id} value={c.nombre} />))}</datalist>
-            </div>
-          </div>
-          <div className={s.row}>
-            <div className={s.field}><label>Importe (€)</label><input type="number" step="0.01" min="0" placeholder="0,00" value={form.importe} onChange={(e) => set('importe', e.target.value)} /></div>
-            <div className={s.field}><label>Fecha</label><input type="date" value={form.fecha} onChange={(e) => set('fecha', e.target.value)} /></div>
-            <div className={s.field}><label>Descripción</label><input type="text" placeholder="Opcional" value={form.descripcion} onChange={(e) => set('descripcion', e.target.value)} /></div>
-          </div>
-          <p className={s.hint}>Si la categoría no existe, se crea automáticamente con el tipo elegido. Haz clic en una fila del historial para editarla.</p>
-          {formErr && <p className={s.error}>{formErr}</p>}
-          <div className={s.actions} style={{ marginTop: 4 }}>
-            <button className={s.btn} type="submit" disabled={saving}>{saving ? 'Guardando…' : editing != null ? 'Guardar cambios' : 'Añadir movimiento'}</button>
-            {editing != null && (
-              <>
-                <button
-                  type="button"
-                  onClick={handleDelete}
-                  disabled={saving}
-                  style={{ padding: '9px 16px', fontSize: 14, fontWeight: 600, background: 'transparent', color: 'var(--down)', border: '1px solid var(--down)', borderRadius: 'var(--r-md)', cursor: 'pointer' }}
-                >
-                  Eliminar
-                </button>
-                <button type="button" className={s.btnGhost} onClick={cancelEdit}>Cancelar</button>
-              </>
-            )}
-          </div>
+          )}
+
+          {(mode === 'nueva' || selId) && (
+            <>
+              <div className={s.row}>
+                <div className={s.field}>
+                  <label>Tipo</label>
+                  <select value={form.tipo} onChange={(e) => set('tipo', e.target.value as TipoMovimiento)}>
+                    {tipoOptions.map((t) => (<option key={t} value={t}>{TIPO_LABEL[t]}</option>))}
+                  </select>
+                </div>
+                <div className={s.field}>
+                  <label>Categoría</label>
+                  <input type="text" list="mov-cats" placeholder="Ej: Alimentación" value={form.catName} onChange={(e) => set('catName', e.target.value)} />
+                  <datalist id="mov-cats">{catsDelTipo.map((c) => (<option key={c.id} value={c.nombre} />))}</datalist>
+                </div>
+              </div>
+              <div className={s.row}>
+                <div className={s.field}><label>Importe (€)</label><input type="number" step="0.01" min="0" placeholder="0,00" value={form.importe} onChange={(e) => set('importe', e.target.value)} /></div>
+                <div className={s.field}><label>Fecha</label><input type="date" value={form.fecha} onChange={(e) => set('fecha', e.target.value)} /></div>
+                <div className={s.field}><label>Descripción</label><input type="text" placeholder="Opcional" value={form.descripcion} onChange={(e) => set('descripcion', e.target.value)} /></div>
+              </div>
+              <p className={s.hint}>
+                Si la categoría no existe, se crea automáticamente con el tipo elegido. También puedes hacer clic en una fila del historial para editarla.
+              </p>
+              {formErr && <p className={s.error}>{formErr}</p>}
+              <div className={s.actions} style={{ marginTop: 4 }}>
+                <button className={s.btn} type="submit" disabled={saving}>{saving ? 'Guardando…' : mode === 'nueva' ? 'Añadir transacción' : 'Guardar cambios'}</button>
+                {mode === 'actualizar' && selId && (
+                  <button type="button" onClick={handleDelete} disabled={saving} style={{ padding: '9px 16px', fontSize: 14, fontWeight: 600, background: 'transparent', color: 'var(--down)', border: '1px solid var(--down)', borderRadius: 'var(--r-md)', cursor: 'pointer' }}>Eliminar</button>
+                )}
+              </div>
+            </>
+          )}
+
+          {mode === 'actualizar' && !selId && (
+            <p className={s.hint}>Selecciona una transacción para editarla o eliminarla.</p>
+          )}
         </form>
       </div>
     </div>

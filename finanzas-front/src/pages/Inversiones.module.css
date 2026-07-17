@@ -197,3 +197,10 @@
 .table td.center {
   text-align: center;
 }
+.table tbody tr {
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.table tbody tr:hover {
+  background: var(--bg2);
+}

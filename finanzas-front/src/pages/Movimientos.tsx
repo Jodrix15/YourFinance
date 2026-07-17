@@ -262,15 +262,26 @@ export default function Movimientos() {
       </div>
 
       <div className={`card ${s.cardBlock}`}>
-        <div className={s.formTitle}>
-          <div className="sec-title" style={{ marginBottom: 0 }}>
-            {editing ? 'Editar movimiento' : 'Nuevo movimiento'}
-          </div>
-          {editing && (
-            <button type="button" className={s.btnGhost} onClick={cancelEdit}>
-              + Nuevo
-            </button>
-          )}
+        <div className={s.tabs}>
+          <button
+            type="button"
+            className={`${s.tab} ${editing == null ? s.tabActive : ''}`}
+            onClick={cancelEdit}
+          >
+            Nueva Transacción
+          </button>
+          <button
+            type="button"
+            className={`${s.tab} ${editing != null ? s.tabActive : ''}`}
+            disabled={editing == null}
+            title={
+              editing == null
+                ? 'Haz clic en un movimiento del historial para actualizarlo'
+                : undefined
+            }
+          >
+            Actualizar
+          </button>
         </div>
 
         <form onSubmit={submit}>
@@ -358,11 +369,6 @@ export default function Movimientos() {
             <button className={s.btn} type="submit" disabled={saving}>
               {saving ? 'Guardando…' : editing ? 'Guardar cambios' : 'Añadir movimiento'}
             </button>
-            {editing && (
-              <button type="button" className={s.btnGhost} onClick={cancelEdit}>
-                Cancelar
-              </button>
-            )}
           </div>
         </form>
       </div>
