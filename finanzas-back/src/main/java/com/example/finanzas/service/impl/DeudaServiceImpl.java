@@ -42,6 +42,10 @@ public class DeudaServiceImpl implements DeudaService {
         return repository.save(deuda);
     }
 
+    public void remove(Long id, UserEntity user) {
+        repository.delete(getDeuda(id, user));
+    }
+
     private void aplicarDTO(DeudaEntity deuda, DeudaDTO deudaDTO) {
         deuda.setNombreDeuda(deudaDTO.nombreDeuda());
         deuda.setImporte(deudaDTO.importe());

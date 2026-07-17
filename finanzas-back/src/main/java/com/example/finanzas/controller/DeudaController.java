@@ -47,4 +47,11 @@ public class DeudaController {
                                                    @AuthenticationPrincipal UserEntity user){
         return ResponseEntity.ok(DeudaDTOResponse.from(service.update(id, deudaDTO, user)));
     }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> remove(@PathVariable Long id,
+                                       @AuthenticationPrincipal UserEntity user) {
+        service.remove(id, user);
+        return ResponseEntity.noContent().build();
+    }
 }

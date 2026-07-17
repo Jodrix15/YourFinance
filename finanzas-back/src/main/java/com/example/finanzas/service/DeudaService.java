@@ -15,4 +15,6 @@ public interface DeudaService {
     DeudaEntity crear(DeudaDTO deudaDTO, UserEntity user);
 
     DeudaEntity update(Long id, DeudaDTO deudaDTO, UserEntity user);
+
+    void remove(Long id, UserEntity user);
 }

@@ -48,4 +48,11 @@ public class InversionController {
                                                         @AuthenticationPrincipal UserEntity user) {
         return ResponseEntity.ok(InversionResponse.from(inversionService.actualizar(id, actualizarInversionDTO, user)));
     }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> remove(@PathVariable Long id,
+                                       @AuthenticationPrincipal UserEntity user) {
+        inversionService.remove(id, user);
+        return ResponseEntity.noContent().build();
+    }
 }

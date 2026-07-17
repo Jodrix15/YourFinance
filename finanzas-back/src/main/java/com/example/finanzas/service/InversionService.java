@@ -16,4 +16,6 @@ public interface InversionService {
     InversionEntity add(InversionDTO inversionDTO, UserEntity user);
 
     InversionEntity actualizar(Long id, ActualizarInversionDTO actualizarInversionDTO, UserEntity user);
+
+    void remove(Long id, UserEntity user);
 }

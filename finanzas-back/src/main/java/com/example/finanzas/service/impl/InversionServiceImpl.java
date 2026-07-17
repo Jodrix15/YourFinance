@@ -64,6 +64,10 @@ public class InversionServiceImpl implements InversionService {
         return repository.save(inversion);
     }
 
+    public void remove(Long id, UserEntity user) {
+        repository.delete(getInversionById(id, user));
+    }
+
     private CategoriaEntity resolverCategoria(Long categoriaId, UserEntity user) {
         CategoriaEntity categoria = categoriaRepository.findById(categoriaId)
                 .orElseThrow(() -> new EntityNotFoundException("Categoria no encontrada con id " + categoriaId));
