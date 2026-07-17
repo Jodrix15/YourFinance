@@ -51,7 +51,6 @@ public class DeudaEntity {
         if (interes == null) {
             return importe;
         }
-        // interes se almacena como porcentaje (4.5 = 4,5%), por eso se divide entre 100.
         BigDecimal intereses = importe.multiply(interes)
                 .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
         return importe.add(intereses);

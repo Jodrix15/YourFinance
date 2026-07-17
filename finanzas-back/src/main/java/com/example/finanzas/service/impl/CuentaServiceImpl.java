@@ -1,12 +1,9 @@
 package com.example.finanzas.service.impl;
+import com.example.finanzas.model.*;
 import com.example.finanzas.service.CuentaService;
 
 import com.example.finanzas.dto.cuenta.CuentaDTO;
 import com.example.finanzas.dto.cuenta.TransaccionDTO;
-import com.example.finanzas.model.CategoriaEntity;
-import com.example.finanzas.model.CuentaEntity;
-import com.example.finanzas.model.TransaccionEntity;
-import com.example.finanzas.model.UserEntity;
 import com.example.finanzas.repository.CategoriaRepository;
 import com.example.finanzas.repository.CuentaRepository;
 import com.example.finanzas.repository.TransaccionRepository;
@@ -16,6 +13,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 @Service
@@ -54,6 +52,12 @@ public class CuentaServiceImpl implements CuentaService {
 
     public List<TransaccionEntity> getAllTransacciones(Long cuentaId, UserEntity user) {
         return getCuenta(cuentaId, user).getTransacciones();
+    }
+
+    public BigDecimal getImporteTotal(UserEntity user) {
+        return getAllCuentas(user).stream()
+                .map(CuentaEntity::getImporte)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
     public TransaccionEntity getTransaccion(Long cuentaId, Long transaccionId, UserEntity user) {

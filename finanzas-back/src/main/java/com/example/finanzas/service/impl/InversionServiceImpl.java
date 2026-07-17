@@ -14,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 @Service
@@ -33,6 +34,8 @@ public class InversionServiceImpl implements InversionService {
     public List<InversionEntity> getAllInversiones(UserEntity user){
         return repository.findByUserId(user.getId());
     }
+
+
 
     public InversionEntity add(InversionDTO inversionDTO, UserEntity user){
         InversionEntity inversion = new InversionEntity();
@@ -82,4 +85,11 @@ public class InversionServiceImpl implements InversionService {
             throw new AccessDeniedException("No tienes acceso a esta inversion");
         }
     }
+
+    public BigDecimal getImporteTotal(UserEntity user) {
+        return getAllInversiones(user).stream()
+                .map(InversionEntity::getCapitalTotal)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
 }

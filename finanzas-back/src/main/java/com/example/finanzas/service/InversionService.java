@@ -5,6 +5,7 @@ import com.example.finanzas.dto.inversion.InversionDTO;
 import com.example.finanzas.model.InversionEntity;
 import com.example.finanzas.model.UserEntity;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 public interface InversionService {
@@ -12,6 +13,8 @@ public interface InversionService {
     InversionEntity getInversionById(Long id, UserEntity user);
 
     List<InversionEntity> getAllInversiones(UserEntity user);
+
+    BigDecimal getImporteTotal(UserEntity user);
 
     InversionEntity add(InversionDTO inversionDTO, UserEntity user);
 

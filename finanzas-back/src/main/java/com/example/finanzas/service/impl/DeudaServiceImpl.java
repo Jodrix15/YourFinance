@@ -10,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 @Service
@@ -34,6 +35,15 @@ public class DeudaServiceImpl implements DeudaService {
         aplicarDTO(deuda, deudaDTO);
         deuda.setUser(user);
         return repository.save(deuda);
+    }
+
+    public BigDecimal getImporteTotal(UserEntity user) {
+        BigDecimal importe = BigDecimal.ZERO;
+        List<DeudaEntity> deudas = getAllDeudas(user);
+        for (DeudaEntity deuda : deudas) {
+            importe = importe.add(deuda.getImporteTotal());
+        }
+        return importe;
     }
 
     public DeudaEntity update(Long id, DeudaDTO deudaDTO, UserEntity user){

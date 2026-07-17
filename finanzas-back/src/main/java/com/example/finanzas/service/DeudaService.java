@@ -4,6 +4,7 @@ import com.example.finanzas.dto.Deuda.DeudaDTO;
 import com.example.finanzas.model.DeudaEntity;
 import com.example.finanzas.model.UserEntity;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 public interface DeudaService {
@@ -15,6 +16,8 @@ public interface DeudaService {
     DeudaEntity crear(DeudaDTO deudaDTO, UserEntity user);
 
     DeudaEntity update(Long id, DeudaDTO deudaDTO, UserEntity user);
+
+    BigDecimal getImporteTotal(UserEntity user);
 
     void remove(Long id, UserEntity user);
 }

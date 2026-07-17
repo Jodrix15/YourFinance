@@ -6,6 +6,7 @@ import com.example.finanzas.model.CuentaEntity;
 import com.example.finanzas.model.TransaccionEntity;
 import com.example.finanzas.model.UserEntity;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 public interface CuentaService {
@@ -13,6 +14,8 @@ public interface CuentaService {
     CuentaEntity getCuenta(Long id, UserEntity user);
 
     List<CuentaEntity> getAllCuentas(UserEntity user);
+
+    BigDecimal getImporteTotal(UserEntity user);
 
     CuentaEntity addCuenta(UserEntity user, CuentaDTO cuentaDTO);
 
