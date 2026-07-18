@@ -204,3 +204,18 @@
 .table tbody tr:hover {
   background: var(--bg2);
 }
+.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+.sortable:hover {
+  color: var(--tx1);
+}
+.sortArrow {
+  display: inline-block;
+  width: 14px;
+  margin-left: 4px;
+  text-align: center;
+  font-size: 10px;
+  color: var(--accent);
+}

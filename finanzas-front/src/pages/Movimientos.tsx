@@ -110,9 +110,9 @@ export default function Movimientos() {
   const ingresos = sum(
     filtered.filter((m) => m.tipoMovimiento === 'INGRESO').map((m) => m.importe),
   )
-  const gastos = sum(filtered.filter((m) => m.tipoMovimiento === 'GASTO').map((m) => m.importe))
+  const gastos = sum(filtered.filter((m) => m.tipoMovimiento === 'GASTO').map((m) => Math.abs(m.importe)))
   const inversiones = sum(
-    filtered.filter((m) => m.tipoMovimiento === 'INVERSION').map((m) => m.importe),
+    filtered.filter((m) => m.tipoMovimiento === 'INVERSION').map((m) => Math.abs(m.importe)),
   )
   const balance = ingresos - gastos - inversiones
 
@@ -128,7 +128,7 @@ export default function Movimientos() {
       tipo: m.tipoMovimiento,
       cuentaId: String(m.cuentaId),
       catName: m.categoriaNombre ?? '',
-      importe: String(m.importe ?? ''),
+      importe: m.importe != null ? String(Math.abs(m.importe)) : '',
       descripcion: m.descripcion ?? '',
       fecha: m.fechaTransaccion ?? today(),
     })
@@ -280,7 +280,7 @@ export default function Movimientos() {
                     style={{ color: esNegativo(m.tipoMovimiento) ? 'var(--down)' : 'var(--up)' }}
                   >
                     {esNegativo(m.tipoMovimiento) ? '−' : '+'}
-                    {formatEur(m.importe, true)}
+                    {formatEur(Math.abs(m.importe), true)}
                   </td>
                 </tr>
               ))}

@@ -4,6 +4,35 @@ export type TipoMovimiento = 'GASTO' | 'INGRESO' | 'INVERSION'
 export type Frecuencia = 'MENSUAL' | 'ANUAL'
 export type TipoPago = 'RECURRENTE' | 'SUSCRIPCION'
 export type Role = 'ROLE_ADMIN' | 'ROLE_USER'
+export type Moneda = 'EUR' | 'USD' | 'GBP'
+
+// ── Perfil / ajustes de usuario ──
+export interface UserProfile {
+  username: string
+  email: string | null
+  role: Role
+  fotoPerfil: string | null
+  moneda: Moneda
+  idioma: string
+  // Solo presente cuando la operación reemite el JWT (p.ej. al cambiar username).
+  token: string | null
+}
+
+export interface UpdateProfileRequest {
+  username: string
+  email?: string | null
+  fotoPerfil?: string | null
+}
+
+export interface ChangePasswordRequest {
+  currentPassword: string
+  newPassword: string
+}
+
+export interface UpdatePreferencesRequest {
+  moneda: Moneda
+  idioma: string
+}
 
 export interface LoginRequest {
   username: string
@@ -55,6 +84,18 @@ export interface Movimiento extends TransaccionResponse {
   cuentaNombre: string
 }
 
+// Respuesta paginada del histórico global (incluye resumen del filtro completo)
+export interface MovimientosPage {
+  contenido: Movimiento[]
+  pagina: number
+  size: number
+  totalElementos: number
+  totalPaginas: number
+  ingresos: number
+  gastos: number
+  inversiones: number
+}
+
 export interface InversionResponse {
   id: number
   categoriaId: number | null
@@ -73,6 +114,8 @@ export interface DeudaResponse {
   importeTotal: number
   cantidadPagada: number
   acreedor: string
+  cuota: number
+  frecuencia: Frecuencia
   interes: number
   fechaVencimiento: string | null
 }
@@ -82,6 +125,8 @@ export interface DeudaDTO {
   importe: number
   cantidadPagada?: number
   acreedor: string
+  cuota: number
+  frecuencia: Frecuencia
   interes?: number
   fechaVencimiento?: string | null
 }

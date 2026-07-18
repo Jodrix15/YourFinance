@@ -15,11 +15,12 @@ import {
 import { useTheme } from '@/context/ThemeContext'
 import { useConfirm } from '@/components/ui/ConfirmProvider'
 import Skeleton from '@/components/ui/Skeleton'
+import EmptyState from '@/components/ui/EmptyState'
 import { notifyOk, notifyError } from '@/lib/notify'
 import { PALETTE, chartTheme } from '@/lib/chartSetup'
 import { formatEur, formatPct } from '@/lib/format'
 import { apiErrorMessage } from '@/lib/api'
-import type { DeudaResponse } from '@/types/api'
+import type { DeudaResponse, Frecuencia } from '@/types/api'
 import s from './Deudas.module.css'
 
 const num = (v: string) => (v.trim() === '' ? NaN : Number(v.replace(',', '.')))
@@ -43,6 +44,8 @@ const EMPTY = {
   importe: '',
   interesPct: '',
   pagada: '',
+  cuota: '',
+  frecuencia: 'MENSUAL',
   vencimiento: '',
 }
 
@@ -58,6 +61,16 @@ export default function Deudas() {
   const [selId, setSelId] = useState('')
   const [form, setForm] = useState({ ...EMPTY })
   const [formErr, setFormErr] = useState<string | null>(null)
+
+  const formRef = useRef<HTMLDivElement>(null)
+  function irAlFormulario() {
+    switchMode('nueva')
+    formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    window.setTimeout(
+      () => formRef.current?.querySelector<HTMLInputElement>('input')?.focus({ preventScroll: true }),
+      350,
+    )
+  }
 
   // Arrastrar-para-desplazar la fila de tarjetas de deuda
   const gridRef = useRef<HTMLDivElement>(null)
@@ -90,6 +103,8 @@ export default function Deudas() {
         importe: String(d.importe ?? ''),
         interesPct: d.interes != null ? String(d.interes) : '',
         pagada: String(d.cantidadPagada ?? ''),
+        cuota: d.cuota != null ? String(d.cuota) : '',
+        frecuencia: d.frecuencia ?? 'MENSUAL',
         vencimiento: d.fechaVencimiento ?? '',
       })
     }
@@ -175,11 +190,15 @@ export default function Deudas() {
 
     const interesPct = num(form.interesPct)
     const pagada = num(form.pagada)
+    const cuota = num(form.cuota)
     const body = {
       nombreDeuda: nombre,
       importe,
       acreedor,
       cantidadPagada: Number.isNaN(pagada) ? 0 : pagada,
+      // Cuota mensual/anual real de la deuda (0 si no se indica).
+      cuota: Number.isNaN(cuota) ? 0 : cuota,
+      frecuencia: form.frecuencia as Frecuencia,
       // El interés se guarda como porcentaje (4,5 = 4,5%), se envía tal cual.
       interes: Number.isNaN(interesPct) ? undefined : interesPct,
       fechaVencimiento: form.vencimiento || null,
@@ -298,9 +317,11 @@ export default function Deudas() {
       <div className={`card ${s.cardBlock}`}>
         <div className="sec-title">Mis deudas</div>
         {list.length === 0 ? (
-          <p style={{ color: 'var(--tx3)', fontSize: 13 }}>
-            No tienes deudas registradas. Añade una con el formulario de abajo.
-          </p>
+          <EmptyState
+            message="No tienes deudas registradas. Añade la primera para llevar el control de lo que debes."
+            actionLabel="Añadir tu primera deuda"
+            onAction={irAlFormulario}
+          />
         ) : (
           <div
             className={s.debtGrid}
@@ -353,7 +374,7 @@ export default function Deudas() {
         )}
       </div>
 
-      <div className={`card ${s.cardBlock}`}>
+      <div ref={formRef} className={`card ${s.cardBlock}`}>
         <div className={s.tabs}>
           <button
             type="button"
@@ -451,6 +472,29 @@ export default function Deudas() {
                     value={form.vencimiento}
                     onChange={(e) => set('vencimiento', e.target.value)}
                   />
+                </div>
+              </div>
+              <div className={s.row}>
+                <div className={s.field}>
+                  <label>Cuota (€)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="0,00"
+                    value={form.cuota}
+                    onChange={(e) => set('cuota', e.target.value)}
+                  />
+                </div>
+                <div className={s.field}>
+                  <label>Frecuencia de la cuota</label>
+                  <select
+                    value={form.frecuencia}
+                    onChange={(e) => set('frecuencia', e.target.value)}
+                  >
+                    <option value="MENSUAL">Mensual</option>
+                    <option value="ANUAL">Anual</option>
+                  </select>
                 </div>
               </div>
               <p className={s.hint}>

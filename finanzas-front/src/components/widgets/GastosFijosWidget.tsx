@@ -1,15 +1,14 @@
 import { useDeudas, useRecurrentes } from '@/hooks/useFinance'
 import { formatEur } from '@/lib/format'
 import { WidgetError, WidgetLoading } from './WidgetState'
-import type { GastoRecurrenteResponse } from '@/types/api'
+import type { DeudaResponse, GastoRecurrenteResponse } from '@/types/api'
 
 const sum = (arr: number[]) => arr.reduce((a, b) => a + Number(b || 0), 0)
 
-function monthsUntil(dateStr: string | null): number {
-  if (!dateStr) return 0
-  const now = new Date()
-  const due = new Date(dateStr)
-  return (due.getFullYear() - now.getFullYear()) * 12 + (due.getMonth() - now.getMonth())
+// Coste mensual de la cuota real de una deuda (anual → /12).
+function mensualDeuda(d: DeudaResponse): number {
+  const c = Number(d.cuota || 0)
+  return d.frecuencia === 'ANUAL' ? c / 12 : c
 }
 
 function mensual(g: GastoRecurrenteResponse): number {
@@ -33,19 +32,13 @@ export default function GastosFijosWidget() {
       .filter((r) => r.tipoPago === 'RECURRENTE' && r.frecuencia === 'MENSUAL')
       .map((r) => Number(r.importeActual || 0)),
   )
-  const cuotasDeuda = sum(
-    (deu.data ?? []).map((d) => {
-      const m = monthsUntil(d.fechaVencimiento)
-      // Solo cuenta lo que queda por pagar (nunca negativo).
-      return m > 0 ? Math.max(0, Number(d.cantidadPendiente || 0) / m) : 0
-    }),
-  )
+  const cuotasDeuda = sum((deu.data ?? []).map(mensualDeuda))
   const total = suscripciones + recMensuales + cuotasDeuda
 
   const rows: [string, number][] = [
     ['Suscripciones', suscripciones],
     ['Recurrentes mensuales', recMensuales],
-    ['Cuotas de deuda (est.)', cuotasDeuda],
+    ['Cuotas de deuda', cuotasDeuda],
   ]
 
   return (

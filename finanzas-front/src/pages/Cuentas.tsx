@@ -1,7 +1,8 @@
-import { useState, type FormEvent } from 'react'
+import { useRef, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useCrearCuenta, useCuentas, useMovimientos } from '@/hooks/useFinance'
 import Skeleton from '@/components/ui/Skeleton'
+import EmptyState from '@/components/ui/EmptyState'
 import { notifyOk, notifyError } from '@/lib/notify'
 import { formatEur } from '@/lib/format'
 import { apiErrorMessage } from '@/lib/api'
@@ -25,6 +26,15 @@ export default function Cuentas() {
   const [nombre, setNombre] = useState('')
   const [importe, setImporte] = useState('')
   const [formErr, setFormErr] = useState<string | null>(null)
+
+  const formRef = useRef<HTMLFormElement>(null)
+  function irAlFormulario() {
+    formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    window.setTimeout(
+      () => formRef.current?.querySelector<HTMLInputElement>('input')?.focus({ preventScroll: true }),
+      350,
+    )
+  }
 
   if (isLoading) {
     return (
@@ -63,7 +73,7 @@ export default function Cuentas() {
     return (fAnio === '' || f.slice(0, 4) === fAnio) && (fMes === '' || f.slice(5, 7) === fMes)
   })
   const ingresos = sum(periodo.filter((m) => m.tipoMovimiento === 'INGRESO').map((m) => m.importe))
-  const gastos = sum(periodo.filter((m) => m.tipoMovimiento === 'GASTO').map((m) => m.importe))
+  const gastos = sum(periodo.filter((m) => m.tipoMovimiento === 'GASTO').map((m) => Math.abs(m.importe)))
   const diferencia = ingresos - gastos
 
   async function submit(e: FormEvent) {
@@ -113,7 +123,11 @@ export default function Cuentas() {
       <div className={`card ${s.cardBlock}`}>
         <div className="sec-title">Mis cuentas</div>
         {list.length === 0 ? (
-          <p className={s.empty}>Aún no tienes cuentas. Crea la primera con el formulario de abajo.</p>
+          <EmptyState
+            message="Aún no tienes cuentas. Empieza creando la primera para ver aquí tu saldo."
+            actionLabel="Añadir tu primera cuenta"
+            onAction={irAlFormulario}
+          />
         ) : (
           <div className={s.grid}>
             {list.map((c) => (
@@ -130,7 +144,7 @@ export default function Cuentas() {
         )}
       </div>
 
-      <form className={`card ${s.cardBlock}`} onSubmit={submit}>
+      <form ref={formRef} className={`card ${s.cardBlock}`} onSubmit={submit}>
         <div className="sec-title">Añadir cuenta</div>
         <div className={s.row}>
           <div className={s.field}><label>Nombre</label><input type="text" placeholder="Ej: Cuenta corriente" value={nombre} onChange={(e) => setNombre(e.target.value)} /></div>

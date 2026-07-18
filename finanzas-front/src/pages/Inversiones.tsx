@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from 'react'
+import { useMemo, useRef, useState, type FormEvent } from 'react'
 import { Bar, Doughnut } from 'react-chartjs-2'
 import {
   useActualizarInversion,
@@ -11,6 +11,7 @@ import {
 import { useTheme } from '@/context/ThemeContext'
 import { useConfirm } from '@/components/ui/ConfirmProvider'
 import Skeleton from '@/components/ui/Skeleton'
+import EmptyState from '@/components/ui/EmptyState'
 import { notifyOk, notifyError } from '@/lib/notify'
 import { PALETTE, chartTheme } from '@/lib/chartSetup'
 import { formatEur, formatPct } from '@/lib/format'
@@ -21,6 +22,7 @@ const num = (v: string) => (v.trim() === '' ? NaN : Number(v.replace(',', '.')))
 const sum = (arr: number[]) => arr.reduce((a, b) => a + Number(b || 0), 0)
 
 type Mode = 'nueva' | 'actualizar'
+type SortField = 'categoria' | 'aportado' | 'total' | 'plusvalia' | 'pct'
 
 export default function Inversiones() {
   const { theme } = useTheme()
@@ -50,6 +52,36 @@ export default function Inversiones() {
   const [updId, setUpdId] = useState('')
   const [updAportacion, setUpdAportacion] = useState('')
   const [updValor, setUpdValor] = useState('')
+
+  const [sortField, setSortField] = useState<SortField | null>(null)
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+
+  const formRef = useRef<HTMLDivElement>(null)
+  function irAlFormulario() {
+    setMode('nueva')
+    setFormErr(null)
+    formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    window.setTimeout(
+      () => formRef.current?.querySelector<HTMLInputElement>('input')?.focus({ preventScroll: true }),
+      350,
+    )
+  }
+
+  function toggleSort(field: SortField) {
+    if (sortField === field) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    else {
+      setSortField(field)
+      setSortDir('asc')
+    }
+  }
+  function sortInd(field: SortField) {
+    const active = sortField === field
+    return (
+      <span className={s.sortArrow} data-active={active ? 'true' : undefined}>
+        {active ? (sortDir === 'asc' ? '▲' : '▼') : '↕'}
+      </span>
+    )
+  }
 
   if (isLoading) {
     return (
@@ -83,6 +115,33 @@ export default function Inversiones() {
   if (isError) return <p style={{ color: 'var(--down)' }}>{apiErrorMessage(error)}</p>
 
   const list = inversiones ?? []
+  const sorted = sortField
+    ? [...list].sort((a, b) => {
+        const dir = sortDir === 'asc' ? 1 : -1
+        const key = (i: (typeof list)[number]): number | string => {
+          switch (sortField) {
+            case 'categoria':
+              return (i.categoriaNombre ?? '').toLowerCase()
+            case 'aportado':
+              return Number(i.capitalAportado || 0)
+            case 'total':
+              return Number(i.capitalTotal || 0)
+            case 'plusvalia':
+              return Number(i.plusvalia || 0)
+            case 'pct':
+              return Number(i.porcentajePlusvalia || 0)
+            default:
+              return 0
+          }
+        }
+        const va = key(a)
+        const vb = key(b)
+        if (typeof va === 'string' && typeof vb === 'string') {
+          return va.localeCompare(vb) * dir
+        }
+        return (Number(va) - Number(vb)) * dir
+      })
+    : list
   const totalInvertido = sum(list.map((i) => i.capitalTotal))
   const totalAportado = sum(list.map((i) => i.capitalAportado))
   const plusvaliaTotal = totalInvertido - totalAportado
@@ -320,22 +379,34 @@ export default function Inversiones() {
       <div className={`card ${s.cardBlock}`}>
         <div className="sec-title">Mis inversiones</div>
         {list.length === 0 ? (
-          <p style={{ color: 'var(--tx3)', fontSize: 13 }}>
-            Aún no tienes inversiones. Crea una con el formulario de abajo.
-          </p>
+          <EmptyState
+            message="Aún no tienes inversiones. Crea la primera para seguir su rentabilidad."
+            actionLabel="Añadir tu primera inversión"
+            onAction={irAlFormulario}
+          />
         ) : (
-          <table className={`tbl ${s.table}`}>
+          <table className={`tbl ${s.table}`} style={{ tableLayout: 'fixed' }}>
             <thead>
               <tr>
-                <th>Categoría</th>
-                <th className={s.center}>Aportado</th>
-                <th className={s.center}>Valor actual</th>
-                <th className={s.center}>Plusvalía</th>
-                <th className={s.center}>%</th>
+                <th className={s.sortable} onClick={() => toggleSort('categoria')}>
+                  Categoría{sortInd('categoria')}
+                </th>
+                <th className={`${s.center} ${s.sortable}`} onClick={() => toggleSort('aportado')}>
+                  Aportado{sortInd('aportado')}
+                </th>
+                <th className={`${s.center} ${s.sortable}`} onClick={() => toggleSort('total')}>
+                  Valor actual{sortInd('total')}
+                </th>
+                <th className={`${s.center} ${s.sortable}`} onClick={() => toggleSort('plusvalia')}>
+                  Plusvalía{sortInd('plusvalia')}
+                </th>
+                <th className={`${s.center} ${s.sortable}`} onClick={() => toggleSort('pct')}>
+                  %{sortInd('pct')}
+                </th>
               </tr>
             </thead>
             <tbody>
-              {list.map((i) => (
+              {sorted.map((i) => (
                 <tr key={i.id} onClick={() => selectInversion(i.id)}>
                   <td>{i.categoriaNombre ?? `#${i.id}`}</td>
                   <td className={s.center}>{formatEur(i.capitalAportado, true)}</td>
@@ -359,7 +430,7 @@ export default function Inversiones() {
         )}
       </div>
 
-      <div className={`card ${s.cardBlock}`}>
+      <div ref={formRef} className={`card ${s.cardBlock}`}>
         <div className={s.tabs}>
           <button
             type="button"

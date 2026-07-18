@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from 'react'
+import { useMemo, useRef, useState, type FormEvent } from 'react'
 import { Bar, Line } from 'react-chartjs-2'
 import {
   useActualizarRecurrente,
@@ -13,6 +13,7 @@ import { useTheme } from '@/context/ThemeContext'
 import Modal from '@/components/ui/Modal'
 import { useConfirm } from '@/components/ui/ConfirmProvider'
 import Skeleton from '@/components/ui/Skeleton'
+import EmptyState from '@/components/ui/EmptyState'
 import { notifyOk, notifyError } from '@/lib/notify'
 import { chartTheme } from '@/lib/chartSetup'
 import { formatEur } from '@/lib/format'
@@ -63,6 +64,16 @@ export default function Recurrentes() {
   const [form, setForm] = useState({ ...EMPTY })
   const [formErr, setFormErr] = useState<string | null>(null)
   const [detail, setDetail] = useState<GastoRecurrenteResponse | null>(null)
+
+  const formRef = useRef<HTMLDivElement>(null)
+  function irAlFormulario() {
+    switchMode('nueva')
+    formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    window.setTimeout(
+      () => formRef.current?.querySelector<HTMLInputElement>('input')?.focus({ preventScroll: true }),
+      350,
+    )
+  }
 
   if (isLoading) {
     return (
@@ -338,9 +349,11 @@ export default function Recurrentes() {
       <div className={`card ${s.cardBlock}`}>
         <div className="sec-title">Mis gastos recurrentes</div>
         {recs.length === 0 ? (
-          <p style={{ color: 'var(--tx3)', fontSize: 13 }}>
-            No tienes gastos recurrentes registrados. Añade uno con el formulario de abajo.
-          </p>
+          <EmptyState
+            message="No tienes gastos recurrentes registrados. Añade el primero para ver tu gasto fijo mensual."
+            actionLabel="Añadir tu primer recurrente"
+            onAction={irAlFormulario}
+          />
         ) : (
           <div className={s.recGrid}>
             {recs.map((r) => (
@@ -384,7 +397,7 @@ export default function Recurrentes() {
         )}
       </div>
 
-      <div className={`card ${s.cardBlock}`}>
+      <div ref={formRef} className={`card ${s.cardBlock}`}>
         <div className={s.tabs}>
           <button
             type="button"

@@ -1,28 +1,36 @@
-import { useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import {
   useActualizarTransaccion,
   useCategorias,
   useCrearCategoria,
   useCrearTransaccion,
   useEliminarTransaccion,
-  useTransacciones,
+  useMovimientosPaginados,
 } from '@/hooks/useFinance'
 import { useConfirm } from '@/components/ui/ConfirmProvider'
 import Skeleton from '@/components/ui/Skeleton'
 import { notifyOk, notifyError } from '@/lib/notify'
 import { formatEur } from '@/lib/format'
 import { apiErrorMessage } from '@/lib/api'
-import type { CuentaResponse, TipoMovimiento, TransaccionResponse } from '@/types/api'
+import type { CuentaResponse, Movimiento, TipoMovimiento } from '@/types/api'
 import s from '@/pages/Movimientos.module.css'
 
 const num = (v: string) => (v.trim() === '' ? NaN : Number(v.replace(',', '.')))
-const sum = (arr: number[]) => arr.reduce((a, b) => a + Number(b || 0), 0)
 const today = () => new Date().toISOString().slice(0, 10)
+
+const SIZE = 20
+type SortField =
+  | 'fechaTransaccion'
+  | 'importe'
+  | 'categoria.nombreCategoria'
+  | 'tipoMovimiento'
 
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
 const NOW = new Date()
 const CUR_MES = String(NOW.getMonth() + 1).padStart(2, '0')
 const CUR_ANIO = String(NOW.getFullYear())
+// Años seleccionables: el actual y los 6 anteriores.
+const ANIOS = Array.from({ length: 7 }, (_, i) => String(NOW.getFullYear() - i))
 const TIPOS: TipoMovimiento[] = ['GASTO', 'INGRESO']
 const TIPO_LABEL: Record<TipoMovimiento, string> = { GASTO: 'Gasto', INGRESO: 'Ingreso', INVERSION: 'Inversión' }
 const BADGE: Record<TipoMovimiento, string> = { GASTO: 'bGasto', INGRESO: 'bIngreso', INVERSION: 'bInversion' }
@@ -34,7 +42,6 @@ const EMPTY = { tipo: 'GASTO' as TipoMovimiento, catName: '', importe: '', descr
 interface Props { cuenta: CuentaResponse; onBack: () => void }
 
 export default function AccountMovimientos({ cuenta, onBack }: Props) {
-  const { data: movs, isLoading, isError, error } = useTransacciones(cuenta.id)
   const { data: categorias } = useCategorias()
   const confirm = useConfirm()
   const crear = useCrearTransaccion()
@@ -42,71 +49,78 @@ export default function AccountMovimientos({ cuenta, onBack }: Props) {
   const eliminar = useEliminarTransaccion()
   const crearCategoria = useCrearCategoria()
 
+  // Filtros, orden y paginación (server-side, acotado a esta cuenta)
   const [fTipo, setFTipo] = useState<'TODOS' | TipoMovimiento>('TODOS')
   const [fMes, setFMes] = useState(CUR_MES)
   const [fAnio, setFAnio] = useState(CUR_ANIO)
   const [search, setSearch] = useState('')
+  const [q, setQ] = useState('')
+  const [page, setPage] = useState(0)
+  const [sortField, setSortField] = useState<SortField>('fechaTransaccion')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+
   const [mode, setMode] = useState<Mode>('nueva')
   const [selId, setSelId] = useState('')
   const [form, setForm] = useState({ ...EMPTY })
   const [formErr, setFormErr] = useState<string | null>(null)
 
-  const catsDelTipo = useMemo(() => (categorias ?? []).filter((c) => c.tipo === form.tipo), [categorias, form.tipo])
-  const anios = useMemo(
-    () => [...new Set([...(movs ?? []).map((m) => (m.fechaTransaccion ?? '').slice(0, 4)).filter(Boolean), CUR_ANIO])].sort().reverse(),
-    [movs],
+  const catsDelTipo = useMemo(
+    () => (categorias ?? []).filter((c) => c.tipo === form.tipo),
+    [categorias, form.tipo],
   )
-  const movsOrdenados = useMemo(
-    () => [...(movs ?? [])].sort((a, b) => (b.fechaTransaccion ?? '').localeCompare(a.fechaTransaccion ?? '')),
-    [movs],
-  )
-  const filtered = useMemo(() => {
-    const list = movs ?? []
-    const q = search.trim().toLowerCase()
-    return list
-      .filter((m) => fTipo === 'TODOS' || m.tipoMovimiento === fTipo)
-      .filter((m) => {
-        const f = m.fechaTransaccion ?? ''
-        return (fAnio === '' || f.slice(0, 4) === fAnio) && (fMes === '' || f.slice(5, 7) === fMes)
-      })
-      .filter((m) => !q || (m.descripcion ?? '').toLowerCase().includes(q) || (m.categoriaNombre ?? '').toLowerCase().includes(q))
-      .sort((a, b) => (b.fechaTransaccion ?? '').localeCompare(a.fechaTransaccion ?? ''))
-  }, [movs, fTipo, fMes, fAnio, search])
 
-  if (isLoading) {
-    return (
-      <div>
-        <div className={s.header} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-          <div>
-            <Skeleton width={180} height={24} />
-            <Skeleton width={200} height={13} style={{ marginTop: 6 }} />
-          </div>
-          <Skeleton width={90} height={32} radius="var(--r-md)" />
-        </div>
-        <div className={s.kpis}>
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className={s.kpi}>
-              <Skeleton width={90} height={11} />
-              <Skeleton width={110} height={24} style={{ marginTop: 10 }} />
-            </div>
-          ))}
-        </div>
-        <div className={`card ${s.cardBlock}`}>
-          <Skeleton width={140} height={13} style={{ marginBottom: 16 }} />
-          {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} width="100%" height={34} style={{ marginBottom: 8 }} />
-          ))}
-        </div>
-      </div>
-    )
-  }
-  if (isError) return <p style={{ color: 'var(--down)' }}>{apiErrorMessage(error)}</p>
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setQ(search.trim())
+      setPage(0)
+    }, 300)
+    return () => clearTimeout(t)
+  }, [search])
 
-  const ingresos = sum(filtered.filter((m) => m.tipoMovimiento === 'INGRESO').map((m) => m.importe))
-  const gastos = sum(filtered.filter((m) => m.tipoMovimiento === 'GASTO').map((m) => m.importe))
+  const query = useMovimientosPaginados({
+    page,
+    size: SIZE,
+    sort: `${sortField},${sortDir}`,
+    cuentaId: cuenta.id,
+    tipo: fTipo === 'TODOS' ? undefined : fTipo,
+    anio: fAnio === '' ? undefined : Number(fAnio),
+    mes: fMes === '' ? undefined : Number(fMes),
+    q: q || undefined,
+  })
+
+  const data = query.data
+  const rows = data?.contenido ?? []
+  const totalPaginas = data?.totalPaginas ?? 0
+  const totalElementos = data?.totalElementos ?? 0
+  const ingresos = data?.ingresos ?? 0
+  const gastos = data?.gastos ?? 0
   const diferencia = ingresos - gastos
 
-  function set<K extends keyof typeof form>(key: K, value: (typeof form)[K]) { setForm((f) => ({ ...f, [key]: value })) }
+  function cambiarFiltro(fn: () => void) {
+    fn()
+    setPage(0)
+  }
+  function toggleSort(field: SortField) {
+    if (sortField === field) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortField(field)
+      setSortDir('desc')
+    }
+    setPage(0)
+  }
+  function sortInd(field: SortField) {
+    const active = sortField === field
+    return (
+      <span className={s.sortArrow} data-active={active ? 'true' : undefined}>
+        {active ? (sortDir === 'asc' ? '▲' : '▼') : '↕'}
+      </span>
+    )
+  }
+
+  function set<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
+    setForm((f) => ({ ...f, [key]: value }))
+  }
 
   function resetForm() {
     setSelId('')
@@ -117,22 +131,18 @@ export default function AccountMovimientos({ cuenta, onBack }: Props) {
     setMode(m)
     resetForm()
   }
-  function prefill(m: TransaccionResponse) {
-    setForm({ tipo: m.tipoMovimiento, catName: m.categoriaNombre ?? '', importe: String(m.importe ?? ''), descripcion: m.descripcion ?? '', fecha: m.fechaTransaccion ?? today() })
-  }
-  function loadTransaccion(id: string) {
-    setSelId(id)
-    setFormErr(null)
-    const m = (movs ?? []).find((x) => x.id === Number(id))
-    if (m) prefill(m)
-    else setForm({ ...EMPTY })
-  }
   // Clic en una fila del historial → abre "Actualizar" con esa transacción cargada.
-  function startEdit(m: TransaccionResponse) {
+  function startEdit(m: Movimiento) {
     setMode('actualizar')
     setSelId(String(m.id))
     setFormErr(null)
-    prefill(m)
+    setForm({
+      tipo: m.tipoMovimiento,
+      catName: m.categoriaNombre ?? '',
+      importe: m.importe != null ? String(Math.abs(m.importe)) : '',
+      descripcion: m.descripcion ?? '',
+      fecha: m.fechaTransaccion ?? today(),
+    })
     window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' })
   }
 
@@ -166,7 +176,7 @@ export default function AccountMovimientos({ cuenta, onBack }: Props) {
     setFormErr(null)
     const importe = num(form.importe)
     const catName = form.catName.trim()
-    if (mode === 'actualizar' && !selId) return setFormErr('Selecciona una transacción.')
+    if (mode === 'actualizar' && !selId) return setFormErr('Selecciona una transacción del historial.')
     if (!catName) return setFormErr('Indica una categoría.')
     if (Number.isNaN(importe) || importe <= 0) return setFormErr('El importe debe ser mayor que 0.')
     if (!form.fecha) return setFormErr('Indica la fecha.')
@@ -190,6 +200,35 @@ export default function AccountMovimientos({ cuenta, onBack }: Props) {
   const saving = crear.isPending || actualizar.isPending || crearCategoria.isPending || eliminar.isPending
   const tipoOptions: TipoMovimiento[] = form.tipo === 'INVERSION' ? [...TIPOS, 'INVERSION'] : TIPOS
 
+  if (query.isLoading && !data) {
+    return (
+      <div>
+        <div className={s.header} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <div>
+            <Skeleton width={180} height={24} />
+            <Skeleton width={200} height={13} style={{ marginTop: 6 }} />
+          </div>
+          <Skeleton width={90} height={32} radius="var(--r-md)" />
+        </div>
+        <div className={s.kpis}>
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className={s.kpi}>
+              <Skeleton width={90} height={11} />
+              <Skeleton width={110} height={24} style={{ marginTop: 10 }} />
+            </div>
+          ))}
+        </div>
+        <div className={`card ${s.cardBlock}`}>
+          <Skeleton width={140} height={13} style={{ marginBottom: 16 }} />
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Skeleton key={i} width="100%" height={34} style={{ marginBottom: 8 }} />
+          ))}
+        </div>
+      </div>
+    )
+  }
+  if (query.isError) return <p style={{ color: 'var(--down)' }}>{apiErrorMessage(query.error)}</p>
+
   return (
     <div>
       <div className={s.header} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
@@ -204,40 +243,68 @@ export default function AccountMovimientos({ cuenta, onBack }: Props) {
       </div>
       <div className={`card ${s.cardBlock}`}>
         <div className={s.cardHead}>
-          <div className="sec-title" style={{ marginBottom: 0 }}>Historial ({filtered.length})</div>
+          <div className="sec-title" style={{ marginBottom: 0 }}>Historial ({totalElementos})</div>
           <div className={s.filters}>
-            <select value={fTipo} onChange={(e) => setFTipo(e.target.value as typeof fTipo)}>
+            <select value={fTipo} onChange={(e) => cambiarFiltro(() => setFTipo(e.target.value as typeof fTipo))}>
               <option value="TODOS">Todos los tipos</option>
               {TIPOS.map((t) => (<option key={t} value={t}>{TIPO_LABEL[t]}</option>))}
             </select>
-            <select value={fMes} onChange={(e) => setFMes(e.target.value)}>
+            <select value={fMes} onChange={(e) => cambiarFiltro(() => setFMes(e.target.value))}>
               <option value="">Todos los meses</option>
               {MESES.map((mes, idx) => (<option key={mes} value={String(idx + 1).padStart(2, '0')}>{mes}</option>))}
             </select>
-            <select value={fAnio} onChange={(e) => setFAnio(e.target.value)}>
+            <select value={fAnio} onChange={(e) => cambiarFiltro(() => setFAnio(e.target.value))}>
               <option value="">Todos los años</option>
-              {anios.map((y) => (<option key={y} value={y}>{y}</option>))}
+              {ANIOS.map((y) => (<option key={y} value={y}>{y}</option>))}
             </select>
             <input type="text" placeholder="Buscar…" value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
         </div>
-        {filtered.length === 0 ? (
+        {rows.length === 0 ? (
           <p className={s.empty}>No hay movimientos con estos filtros.</p>
         ) : (
-          <table className={s.movTable}>
-            <thead><tr><th>Fecha</th><th>Descripción</th><th>Categoría</th><th>Tipo</th><th>Importe</th></tr></thead>
+          <table className={s.movTable} style={{ tableLayout: 'fixed' }}>
+            <thead>
+              <tr>
+                <th className={s.sortable} onClick={() => toggleSort('fechaTransaccion')}>
+                  Fecha{sortInd('fechaTransaccion')}
+                </th>
+                <th>Descripción</th>
+                <th className={s.sortable} onClick={() => toggleSort('categoria.nombreCategoria')}>
+                  Categoría{sortInd('categoria.nombreCategoria')}
+                </th>
+                <th className={s.sortable} onClick={() => toggleSort('tipoMovimiento')}>
+                  Tipo{sortInd('tipoMovimiento')}
+                </th>
+                <th className={s.sortable} onClick={() => toggleSort('importe')}>
+                  Importe{sortInd('importe')}
+                </th>
+              </tr>
+            </thead>
             <tbody>
-              {filtered.map((m) => (
+              {rows.map((m) => (
                 <tr key={m.id} onClick={() => startEdit(m)}>
                   <td>{m.fechaTransaccion ?? '—'}</td>
                   <td>{m.descripcion || '—'}</td>
                   <td>{m.categoriaNombre ?? '—'}</td>
                   <td><span className={`${s.badge} ${s[BADGE[m.tipoMovimiento]]}`}>{TIPO_LABEL[m.tipoMovimiento]}</span></td>
-                  <td className={s.amount} style={{ color: esNegativo(m.tipoMovimiento) ? 'var(--down)' : 'var(--up)' }}>{esNegativo(m.tipoMovimiento) ? '−' : '+'}{formatEur(m.importe, true)}</td>
+                  <td className={s.amount} style={{ color: esNegativo(m.tipoMovimiento) ? 'var(--down)' : 'var(--up)' }}>{esNegativo(m.tipoMovimiento) ? '−' : '+'}{formatEur(Math.abs(m.importe), true)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
+        )}
+
+        {totalElementos > 0 && (
+          <div className={s.pager}>
+            <span className={s.pagerInfo}>
+              {totalElementos} movimiento{totalElementos === 1 ? '' : 's'} · página {page + 1} de {Math.max(1, totalPaginas)}
+            </span>
+            <div className={s.pagerBtns}>
+              <button type="button" className={s.pageBtn} disabled={page <= 0} onClick={() => setPage((p) => Math.max(0, p - 1))}>Anterior</button>
+              <button type="button" className={s.pageBtn} disabled={page >= totalPaginas - 1} onClick={() => setPage((p) => p + 1)}>Siguiente</button>
+            </div>
+          </div>
         )}
       </div>
       <div className={`card ${s.cardBlock}`}>
@@ -246,20 +313,8 @@ export default function AccountMovimientos({ cuenta, onBack }: Props) {
           <button type="button" className={`${s.tab} ${mode === 'actualizar' ? s.tabActive : ''}`} onClick={() => switchMode('actualizar')}>Actualizar</button>
         </div>
         <form onSubmit={submit}>
-          {mode === 'actualizar' && (
-            <div className={s.row}>
-              <div className={s.field}>
-                <label>Transacción a actualizar</label>
-                <select value={selId} onChange={(e) => loadTransaccion(e.target.value)}>
-                  <option value="">Selecciona</option>
-                  {movsOrdenados.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.fechaTransaccion} · {m.descripcion || TIPO_LABEL[m.tipoMovimiento]} · {esNegativo(m.tipoMovimiento) ? '−' : '+'}{formatEur(m.importe, true)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
+          {mode === 'actualizar' && !selId && (
+            <p className={s.hint}>Haz clic en una fila del historial para editarla o eliminarla.</p>
           )}
 
           {(mode === 'nueva' || selId) && (
@@ -293,10 +348,6 @@ export default function AccountMovimientos({ cuenta, onBack }: Props) {
                 )}
               </div>
             </>
-          )}
-
-          {mode === 'actualizar' && !selId && (
-            <p className={s.hint}>Selecciona una transacción para editarla o eliminarla.</p>
           )}
         </form>
       </div>

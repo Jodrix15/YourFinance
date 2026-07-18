@@ -26,6 +26,17 @@
 .bInversion { color: var(--blue); background: rgba(47, 129, 247, 0.15); }
 .empty { color: var(--tx3); font-size: 13px; padding: 6px 0; }
 
+.sortable { cursor: pointer; user-select: none; }
+.sortable:hover { color: var(--tx1); }
+.sortArrow { display: inline-block; width: 14px; margin-left: 4px; text-align: center; font-size: 10px; color: var(--accent); }
+
+.pager { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; flex-wrap: wrap; }
+.pagerInfo { font-size: 12px; color: var(--tx2); }
+.pagerBtns { display: flex; gap: 6px; }
+.pageBtn { padding: 6px 14px; font-size: 13px; font-weight: 500; background: var(--bg2); color: var(--tx1); border: 1px solid var(--border2); border-radius: var(--r-md); cursor: pointer; transition: background 0.15s; }
+.pageBtn:hover:not(:disabled) { background: var(--bg3); }
+.pageBtn:disabled { opacity: 0.5; cursor: default; }
+
 .formTitle { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
 .formTitle .sec-title { margin-bottom: 0; }
 .row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 12px; }

@@ -9,6 +9,7 @@ import Suscripciones from '@/pages/Suscripciones'
 import Recurrentes from '@/pages/Recurrentes'
 import Cuentas from '@/pages/Cuentas'
 import CuentaMovimientos from '@/pages/CuentaMovimientos'
+import Ajustes from '@/pages/Ajustes'
 import Placeholder from '@/pages/Placeholder'
 import type { ReactElement } from 'react'
 
@@ -41,6 +42,7 @@ export default function App() {
         <Route path="/suscripciones" element={<Suscripciones />} />
         <Route path="/deudas" element={<Deudas />} />
         <Route path="/inversiones" element={<Inversiones />} />
+        <Route path="/ajustes" element={<Ajustes />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

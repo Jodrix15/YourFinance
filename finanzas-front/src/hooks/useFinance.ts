@@ -1,4 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
 import { financeApi } from '@/lib/finance'
 import type {
   ActualizarGasto,
@@ -39,6 +44,23 @@ export function useMovimientos() {
   return useQuery({ queryKey: ['movimientos'], queryFn: financeApi.movimientos })
 }
 
+export function useMovimientosPaginados(params: {
+  page: number
+  size: number
+  sort: string
+  tipo?: string
+  cuentaId?: number
+  anio?: number
+  mes?: number
+  q?: string
+}) {
+  return useQuery({
+    queryKey: ['movimientosPaginados', params],
+    queryFn: () => financeApi.movimientosPaginados(params),
+    placeholderData: keepPreviousData,
+  })
+}
+
 export function usePatrimonioHistorico() {
   return useQuery({
     queryKey: ['patrimonioHistorico'],
@@ -70,6 +92,7 @@ export function useCrearTransaccion() {
       financeApi.crearTransaccion(cuentaId, body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['movimientos'] })
+      qc.invalidateQueries({ queryKey: ['movimientosPaginados'] })
       qc.invalidateQueries({ queryKey: ['transacciones'] })
       qc.invalidateQueries({ queryKey: ['cuentas'] })
     },
@@ -83,6 +106,7 @@ export function useEliminarTransaccion() {
       financeApi.eliminarTransaccion(cuentaId, id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['movimientos'] })
+      qc.invalidateQueries({ queryKey: ['movimientosPaginados'] })
       qc.invalidateQueries({ queryKey: ['transacciones'] })
       qc.invalidateQueries({ queryKey: ['cuentas'] })
     },
@@ -96,6 +120,7 @@ export function useActualizarTransaccion() {
       financeApi.actualizarTransaccion(cuentaId, id, body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['movimientos'] })
+      qc.invalidateQueries({ queryKey: ['movimientosPaginados'] })
       qc.invalidateQueries({ queryKey: ['transacciones'] })
       qc.invalidateQueries({ queryKey: ['cuentas'] })
     },
@@ -143,6 +168,29 @@ export function useCrearCategoria() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (body: CrearCategoria) => financeApi.crearCategoria(body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['categorias'] }),
+  })
+}
+
+export function useActualizarCategoria() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: number } & CrearCategoria) =>
+      financeApi.actualizarCategoria(id, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['categorias'] })
+      // El nombre de la categoría se muestra en movimientos e inversiones.
+      qc.invalidateQueries({ queryKey: ['movimientos'] })
+      qc.invalidateQueries({ queryKey: ['movimientosPaginados'] })
+      qc.invalidateQueries({ queryKey: ['inversiones'] })
+    },
+  })
+}
+
+export function useEliminarCategoria() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => financeApi.eliminarCategoria(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['categorias'] }),
   })
 }

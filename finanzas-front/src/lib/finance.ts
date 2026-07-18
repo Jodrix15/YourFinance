@@ -15,12 +15,17 @@ import type {
   LoginRequest,
   LoginResponse,
   Movimiento,
+  MovimientosPage,
   NuevoPrecioRequest,
   PatrimonioSnapshot,
   RecurrentePrecioResponse,
   RegisterRequest,
   TransaccionDTO,
   TransaccionResponse,
+  UserProfile,
+  UpdateProfileRequest,
+  ChangePasswordRequest,
+  UpdatePreferencesRequest,
 } from '@/types/api'
 
 // ── Auth ──
@@ -29,6 +34,17 @@ export const authApi = {
     api.post<LoginResponse>('/api/auth/login', body).then((r) => r.data),
   register: (body: RegisterRequest) =>
     api.post<LoginResponse>('/api/auth/register', body).then((r) => r.data),
+}
+
+// ── Perfil / ajustes ──
+export const userApi = {
+  me: () => api.get<UserProfile>('/api/user/me').then((r) => r.data),
+  updateProfile: (body: UpdateProfileRequest) =>
+    api.put<UserProfile>('/api/user/me', body).then((r) => r.data),
+  changePassword: (body: ChangePasswordRequest) =>
+    api.put<void>('/api/user/me/password', body).then((r) => r.data),
+  updatePreferences: (body: UpdatePreferencesRequest) =>
+    api.put<UserProfile>('/api/user/me/preferences', body).then((r) => r.data),
 }
 
 // ── Recursos ──
@@ -42,18 +58,21 @@ export const financeApi = {
     api
       .get<TransaccionResponse[]>(`/api/cuenta/${cuentaId}/transacciones`)
       .then((r) => r.data),
-  // Todos los movimientos: junta las transacciones de todas las cuentas.
-  movimientos: async (): Promise<Movimiento[]> => {
-    const cuentas = await api.get<CuentaResponse[]>('/api/cuenta').then((r) => r.data)
-    const listas = await Promise.all(
-      cuentas.map((c) =>
-        api
-          .get<TransaccionResponse[]>(`/api/cuenta/${c.id}/transacciones`)
-          .then((r) => r.data.map((tx) => ({ ...tx, cuentaNombre: c.nombreCuenta }))),
-      ),
-    )
-    return listas.flat()
-  },
+  // Todos los movimientos en una sola consulta (para agregados/KPIs).
+  movimientos: () =>
+    api.get<Movimiento[]>('/api/transacciones/todas').then((r) => r.data),
+  // Histórico global paginado/filtrado/ordenado (server-side).
+  movimientosPaginados: (params: {
+    page: number
+    size: number
+    sort: string
+    tipo?: string
+    cuentaId?: number
+    anio?: number
+    mes?: number
+    q?: string
+  }) =>
+    api.get<MovimientosPage>('/api/transacciones', { params }).then((r) => r.data),
   crearTransaccion: (cuentaId: number, body: TransaccionDTO) =>
     api
       .post<TransaccionResponse>(`/api/cuenta/${cuentaId}/transacciones`, body)
@@ -95,6 +114,10 @@ export const financeApi = {
   categorias: () => api.get<CategoriaResponse[]>('/api/categoria').then((r) => r.data),
   crearCategoria: (body: CrearCategoria) =>
     api.post<CategoriaResponse>('/api/categoria', body).then((r) => r.data),
+  actualizarCategoria: (id: number, body: CrearCategoria) =>
+    api.put<CategoriaResponse>(`/api/categoria/${id}`, body).then((r) => r.data),
+  eliminarCategoria: (id: number) =>
+    api.delete<void>(`/api/categoria/${id}`).then((r) => r.data),
   patrimonioHistorico: () =>
     api
       .get<PatrimonioSnapshot[]>('/api/dashboard/patrimonio/historico')
