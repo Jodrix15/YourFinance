@@ -8,4 +8,5 @@ import java.util.UUID;
 
 public interface GastoRecurrenteRepository extends JpaRepository<GastoRecurrenteEntity, Long> {
     List<GastoRecurrenteEntity> findByUserId(UUID userId);
+    boolean existsByCategoriaId(Long categoriaId);
 }

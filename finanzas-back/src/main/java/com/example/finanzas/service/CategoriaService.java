@@ -11,4 +11,8 @@ public interface CategoriaService {
     CategoriaEntity crear(CrearCategoria dto, UserEntity user);
 
     List<CategoriaEntity> listar(UserEntity user);
+
+    CategoriaEntity actualizar(Long id, CrearCategoria dto, UserEntity user);
+
+    void eliminar(Long id, UserEntity user);
 }

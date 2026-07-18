@@ -1,5 +1,6 @@
 package com.example.finanzas.model;
 
+import com.example.finanzas.model.enums.MonedaEnum;
 import com.example.finanzas.model.enums.RoleEnum;
 import jakarta.persistence.*;
 import lombok.*;
@@ -31,6 +32,14 @@ public class UserEntity implements UserDetails {
     @Column(unique = true, nullable = false)
     private String username;
 
+    @Column(unique = true)
+    private String email;
+
+    /** Foto de perfil almacenada como data URL en base64 (p.ej. "data:image/png;base64,..."). */
+    @Column(columnDefinition = "LONGTEXT")
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    private String fotoPerfil;
+
     @Column(nullable = false)
     @com.fasterxml.jackson.annotation.JsonIgnore
     private String password;
@@ -39,20 +48,19 @@ public class UserEntity implements UserDetails {
     @Column(nullable = false)
     private RoleEnum role;
 
+    /** Moneda preferida. Default a nivel de columna para no romper ALTER sobre filas existentes. */
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, columnDefinition = "VARCHAR(3) DEFAULT 'EUR'")
+    @Builder.Default
+    private MonedaEnum moneda = MonedaEnum.EUR;
+
+    /** Idioma preferido (código ISO: "es", "en"...). Las traducciones viven en el front. */
+    @Column(nullable = false, columnDefinition = "VARCHAR(8) DEFAULT 'es'")
+    @Builder.Default
+    private String idioma = "es";
+
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         return List.of(new SimpleGrantedAuthority(role.name()));
     }
-
-    @Override
-    public boolean isAccountNonExpired() { return true; }
-
-    @Override
-    public boolean isAccountNonLocked() { return true; }
-
-    @Override
-    public boolean isCredentialsNonExpired() { return true; }
-
-    @Override
-    public boolean isEnabled() { return true; }
 }

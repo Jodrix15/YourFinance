@@ -8,4 +8,5 @@ import java.util.UUID;
 
 public interface InversionRepository extends JpaRepository<InversionEntity, Long> {
     List<InversionEntity> findByUserId(UUID userId);
+    boolean existsByCategoriaId(Long categoriaId);
 }

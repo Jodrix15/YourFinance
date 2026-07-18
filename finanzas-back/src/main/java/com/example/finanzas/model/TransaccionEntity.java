@@ -41,9 +41,11 @@ public class TransaccionEntity {
     @JoinColumn(name = "cuenta_id", nullable = false)
     private CuentaEntity cuenta;
 
+    // El importe ya se guarda con signo (gasto/inversión en negativo), así que
+    // aquí solo se devuelve tal cual. Se mantiene el método por compatibilidad
+    // con el cálculo de saldos.
     @Transient
     public BigDecimal getImporteConSigno() {
-        boolean resta = tipoMovimiento == TipoMovimientoEnum.GASTO || tipoMovimiento == TipoMovimientoEnum.INVERSION;
-        return resta ? importe.negate() : importe;
+        return importe;
     }
 }

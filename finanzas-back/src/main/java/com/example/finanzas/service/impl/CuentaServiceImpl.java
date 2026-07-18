@@ -1,5 +1,6 @@
 package com.example.finanzas.service.impl;
 import com.example.finanzas.model.*;
+import com.example.finanzas.model.enums.TipoMovimientoEnum;
 import com.example.finanzas.service.CuentaService;
 
 import com.example.finanzas.dto.cuenta.CuentaDTO;
@@ -105,9 +106,17 @@ public class CuentaServiceImpl implements CuentaService {
     private void aplicarDTO(TransaccionEntity transaccion, TransaccionDTO transaccionDTO, UserEntity user) {
         transaccion.setCategoria(resolverCategoria(transaccionDTO.categoriaId(), user));
         transaccion.setTipoMovimiento(transaccionDTO.tipoMovimiento());
-        transaccion.setImporte(transaccionDTO.importe());
+        transaccion.setImporte(conSigno(transaccionDTO.importe(), transaccionDTO.tipoMovimiento()));
         transaccion.setDescripcion(transaccionDTO.descripcion());
         transaccion.setFechaTransaccion(transaccionDTO.fecha());
+    }
+
+    /** Importe con signo: negativo para gasto/inversión, positivo para ingreso. */
+    private static BigDecimal conSigno(BigDecimal importe, TipoMovimientoEnum tipo) {
+        if (importe == null) return BigDecimal.ZERO;
+        BigDecimal magnitud = importe.abs();
+        boolean resta = tipo == TipoMovimientoEnum.GASTO || tipo == TipoMovimientoEnum.INVERSION;
+        return resta ? magnitud.negate() : magnitud;
     }
 
     private CategoriaEntity resolverCategoria(Long categoriaId, UserEntity user) {

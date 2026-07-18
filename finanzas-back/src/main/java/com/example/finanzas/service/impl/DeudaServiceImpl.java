@@ -62,6 +62,8 @@ public class DeudaServiceImpl implements DeudaService {
         deuda.setCantidadPagada(deudaDTO.cantidadPagada());
         deuda.setAcreedor(deudaDTO.acreedor());
         deuda.setInteres(deudaDTO.interes());
+        deuda.setFrecuencia(deudaDTO.frecuencia());
+        deuda.setCuota(deudaDTO.cuota());
         deuda.setFechaVencimiento(deudaDTO.fechaVencimiento());
     }
 

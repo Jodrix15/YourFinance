@@ -34,5 +34,19 @@ public class CategoriaController {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(CategoriaResponse.from(service.crear(dto, user)));
     }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<CategoriaResponse> actualizar(@PathVariable Long id,
+                                                        @Valid @RequestBody CrearCategoria dto,
+                                                        @AuthenticationPrincipal UserEntity user) {
+        return ResponseEntity.ok(CategoriaResponse.from(service.actualizar(id, dto, user)));
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> eliminar(@PathVariable Long id,
+                                         @AuthenticationPrincipal UserEntity user) {
+        service.eliminar(id, user);
+        return ResponseEntity.noContent().build();
+    }
 }
    
