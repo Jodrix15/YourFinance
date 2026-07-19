@@ -1,8 +1,10 @@
 package com.example.finanzas.controller;
 
 import com.example.finanzas.dto.inversion.ActualizarInversionDTO;
+import com.example.finanzas.dto.inversion.DistribucionCategoriaResponse;
 import com.example.finanzas.dto.inversion.InversionDTO;
 import com.example.finanzas.dto.inversion.InversionResponse;
+import com.example.finanzas.dto.inversion.ResumenInversionResponse;
 import com.example.finanzas.model.UserEntity;
 import com.example.finanzas.service.InversionService;
 import jakarta.validation.Valid;
@@ -33,6 +35,16 @@ public class InversionController {
     public ResponseEntity<InversionResponse> getInversion(@PathVariable Long id,
                                                           @AuthenticationPrincipal UserEntity user) {
         return ResponseEntity.ok(InversionResponse.from(inversionService.getInversionById(id, user)));
+    }
+
+    @GetMapping("/resumen")
+    public ResponseEntity<ResumenInversionResponse> getResumen(@AuthenticationPrincipal UserEntity user) {
+        return ResponseEntity.ok(inversionService.getResumen(user));
+    }
+
+    @GetMapping("/distribucion-categoria")
+    public ResponseEntity<List<DistribucionCategoriaResponse>> getDistribucionPorCategoria(@AuthenticationPrincipal UserEntity user) {
+        return ResponseEntity.ok(inversionService.getDistribucionPorCategoria(user));
     }
 
     @PostMapping

@@ -1,6 +1,7 @@
 package com.example.finanzas.service;
 
 import com.example.finanzas.dto.cuenta.CuentaDTO;
+import com.example.finanzas.dto.cuenta.ResumenCuentaResponse;
 import com.example.finanzas.dto.cuenta.TransaccionDTO;
 import com.example.finanzas.model.CuentaEntity;
 import com.example.finanzas.model.TransaccionEntity;
@@ -16,6 +17,8 @@ public interface CuentaService {
     List<CuentaEntity> getAllCuentas(UserEntity user);
 
     BigDecimal getImporteTotal(UserEntity user);
+
+    ResumenCuentaResponse getResumen(UserEntity user, Integer anio, Integer mes);
 
     CuentaEntity addCuenta(UserEntity user, CuentaDTO cuentaDTO);
 

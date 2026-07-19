@@ -4,6 +4,8 @@ import com.example.finanzas.service.InversionService;
 
 import com.example.finanzas.dto.inversion.InversionDTO;
 import com.example.finanzas.dto.inversion.ActualizarInversionDTO;
+import com.example.finanzas.dto.inversion.DistribucionCategoriaResponse;
+import com.example.finanzas.dto.inversion.ResumenInversionResponse;
 import com.example.finanzas.model.CategoriaEntity;
 import com.example.finanzas.model.InversionEntity;
 import com.example.finanzas.model.UserEntity;
@@ -15,7 +17,10 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -86,10 +91,68 @@ public class InversionServiceImpl implements InversionService {
         }
     }
 
+
     public BigDecimal getImporteTotal(UserEntity user) {
         return getAllInversiones(user).stream()
                 .map(InversionEntity::getCapitalTotal)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    public BigDecimal getCapitalAportadoTotal(UserEntity user) {
+        return getAllInversiones(user).stream()
+                .map(InversionEntity::getCapitalAportado)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    public BigDecimal getPlusvaliaTotal(UserEntity user) {
+        return getAllInversiones(user).stream()
+                .map(InversionEntity::getPlusvalia)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    public BigDecimal getPorcentajeTotal(UserEntity user) {
+        BigDecimal aportado = getCapitalAportadoTotal(user);
+        if (aportado.signum() == 0) {
+            return BigDecimal.ZERO;
+        }
+        return getPlusvaliaTotal(user)
+                .divide(aportado, 4, RoundingMode.HALF_UP)
+                .multiply(BigDecimal.valueOf(100));
+    }
+
+    public ResumenInversionResponse getResumen(UserEntity user) {
+        return new ResumenInversionResponse(
+                getImporteTotal(user),
+                getCapitalAportadoTotal(user),
+                getPlusvaliaTotal(user),
+                getPorcentajeTotal(user)
+        );
+    }
+
+    public List<DistribucionCategoriaResponse> getDistribucionPorCategoria(UserEntity user) {
+        List<InversionEntity> inversiones = getAllInversiones(user);
+        BigDecimal total = getImporteTotal(user);
+
+        return inversiones.stream()
+                .collect(Collectors.groupingBy(inversion -> inversion.getCategoria().getId()))
+                .values().stream()
+                .map(inversionesCategoria -> {
+                    CategoriaEntity categoria = inversionesCategoria.get(0).getCategoria();
+                    BigDecimal capitalCategoria = inversionesCategoria.stream()
+                            .map(InversionEntity::getCapitalTotal)
+                            .reduce(BigDecimal.ZERO, BigDecimal::add);
+                    BigDecimal porcentaje = total.signum() == 0
+                            ? BigDecimal.ZERO
+                            : capitalCategoria.divide(total, 4, RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(100));
+                    return new DistribucionCategoriaResponse(
+                            categoria.getId(),
+                            categoria.getNombreCategoria(),
+                            capitalCategoria,
+                            porcentaje
+                    );
+                })
+                .sorted(Comparator.comparing(DistribucionCategoriaResponse::porcentaje).reversed())
+                .toList();
     }
 
 }

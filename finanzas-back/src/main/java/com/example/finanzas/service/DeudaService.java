@@ -1,6 +1,7 @@
 package com.example.finanzas.service;
 
 import com.example.finanzas.dto.Deuda.DeudaDTO;
+import com.example.finanzas.dto.Deuda.ResumenDeudaResponse;
 import com.example.finanzas.model.DeudaEntity;
 import com.example.finanzas.model.UserEntity;
 
@@ -18,6 +19,8 @@ public interface DeudaService {
     DeudaEntity update(Long id, DeudaDTO deudaDTO, UserEntity user);
 
     BigDecimal getImporteTotal(UserEntity user);
+
+    ResumenDeudaResponse getResumen(UserEntity user);
 
     void remove(Long id, UserEntity user);
 }

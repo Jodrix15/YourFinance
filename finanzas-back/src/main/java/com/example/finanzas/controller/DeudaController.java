@@ -2,6 +2,7 @@ package com.example.finanzas.controller;
 
 import com.example.finanzas.dto.Deuda.DeudaDTO;
 import com.example.finanzas.dto.Deuda.DeudaDTOResponse;
+import com.example.finanzas.dto.Deuda.ResumenDeudaResponse;
 import com.example.finanzas.model.UserEntity;
 import com.example.finanzas.service.DeudaService;
 import jakarta.validation.Valid;
@@ -26,6 +27,11 @@ public class DeudaController {
                 .map(DeudaDTOResponse::from)
                 .toList();
         return ResponseEntity.ok(deudas);
+    }
+
+    @GetMapping("/resumen")
+    public ResponseEntity<ResumenDeudaResponse> getResumen(@AuthenticationPrincipal UserEntity user) {
+        return ResponseEntity.ok(service.getResumen(user));
     }
 
     @GetMapping("/{id}")

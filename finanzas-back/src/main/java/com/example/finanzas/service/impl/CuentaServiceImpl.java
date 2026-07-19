@@ -4,6 +4,7 @@ import com.example.finanzas.model.enums.TipoMovimientoEnum;
 import com.example.finanzas.service.CuentaService;
 
 import com.example.finanzas.dto.cuenta.CuentaDTO;
+import com.example.finanzas.dto.cuenta.ResumenCuentaResponse;
 import com.example.finanzas.dto.cuenta.TransaccionDTO;
 import com.example.finanzas.repository.CategoriaRepository;
 import com.example.finanzas.repository.CuentaRepository;
@@ -59,6 +60,29 @@ public class CuentaServiceImpl implements CuentaService {
         return getAllCuentas(user).stream()
                 .map(CuentaEntity::getImporte)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    public ResumenCuentaResponse getResumen(UserEntity user, Integer anio, Integer mes) {
+        List<CuentaEntity> cuentas = getAllCuentas(user);
+        BigDecimal totalCuentas = cuentas.stream()
+                .map(CuentaEntity::getImporte)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal ingresos = BigDecimal.ZERO;
+        BigDecimal gastos = BigDecimal.ZERO;
+        // Reutiliza el agregado por tipo del histórico (sin filtrar por cuenta ni texto).
+        for (Object[] fila : transaccionRepository.resumenPorTipo(user.getId(), null, null, anio, mes, null)) {
+            TipoMovimientoEnum tipo = (TipoMovimientoEnum) fila[0];
+            BigDecimal suma = new BigDecimal(fila[1].toString());
+            if (tipo == TipoMovimientoEnum.INGRESO) {
+                ingresos = suma;
+            } else if (tipo == TipoMovimientoEnum.GASTO) {
+                gastos = suma.abs();
+            }
+        }
+        BigDecimal diferencia = ingresos.subtract(gastos);
+
+        return new ResumenCuentaResponse(totalCuentas, ingresos, gastos, diferencia, cuentas.size());
     }
 
     public TransaccionEntity getTransaccion(Long cuentaId, Long transaccionId, UserEntity user) {

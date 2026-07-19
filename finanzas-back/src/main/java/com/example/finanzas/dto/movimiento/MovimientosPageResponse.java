@@ -15,6 +15,7 @@ public record MovimientosPageResponse(
         int totalPaginas,
         BigDecimal ingresos,
         BigDecimal gastos,
-        BigDecimal inversiones
+        BigDecimal inversiones,
+        BigDecimal diferencia
 ) {
 }

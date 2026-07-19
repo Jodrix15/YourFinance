@@ -5,7 +5,9 @@ import com.example.finanzas.dto.gasto.CrearGasto;
 import com.example.finanzas.dto.gasto.GastoRecurrenteResponse;
 import com.example.finanzas.dto.gasto.NuevoPrecioRequest;
 import com.example.finanzas.dto.gasto.RecurrentePrecioResponse;
+import com.example.finanzas.dto.gasto.ResumenRecurrenteResponse;
 import com.example.finanzas.model.UserEntity;
+import com.example.finanzas.model.enums.TipoPagoEnum;
 import com.example.finanzas.service.GastoRecurrenteService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -29,6 +31,12 @@ public class GastoRecurrenteController {
                 .map(GastoRecurrenteResponse::from)
                 .toList();
         return ResponseEntity.ok(gastos);
+    }
+
+    @GetMapping("/resumen")
+    public ResponseEntity<ResumenRecurrenteResponse> getResumen(@RequestParam TipoPagoEnum tipo,
+                                                                @AuthenticationPrincipal UserEntity user) {
+        return ResponseEntity.ok(service.getResumen(user, tipo));
     }
 
     @GetMapping("/{id}")

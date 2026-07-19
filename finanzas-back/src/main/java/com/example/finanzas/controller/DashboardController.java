@@ -1,8 +1,12 @@
 package com.example.finanzas.controller;
 
 import com.example.finanzas.dto.dashboard.PatrimonioSnapshotResponse;
+import com.example.finanzas.dto.inversion.DistribucionCategoriaResponse;
 import com.example.finanzas.model.UserEntity;
+import com.example.finanzas.service.CuentaService;
 import com.example.finanzas.service.DashboardService;
+import com.example.finanzas.service.DeudaService;
+import com.example.finanzas.service.InversionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -19,6 +23,9 @@ import java.util.List;
 public class DashboardController {
 
     private final DashboardService dashboardService;
+    private final CuentaService cuentaService;
+    private final InversionService inversionService;
+    private final DeudaService deudaService;
 
     @GetMapping("/patrimonio-neto")
     public ResponseEntity<BigDecimal> getPatrimonioNeto(@AuthenticationPrincipal UserEntity user) {
@@ -38,4 +45,27 @@ public class DashboardController {
                 .toList();
         return ResponseEntity.ok(historico);
     }
+
+    @GetMapping("/capital-cuentas")
+    public ResponseEntity<BigDecimal> getSalarioCuentas(@AuthenticationPrincipal UserEntity user) {
+        return ResponseEntity.ok(cuentaService.getImporteTotal(user));
+    }
+
+    @GetMapping("/capital-inversion")
+    public ResponseEntity<BigDecimal> getCapitalInversiones(@AuthenticationPrincipal UserEntity user) {
+        return ResponseEntity.ok(inversionService.getImporteTotal(user));
+    }
+
+    @GetMapping("/capital-deuda")
+    public ResponseEntity<BigDecimal> getCapitalDeudas(@AuthenticationPrincipal UserEntity user) {
+        return ResponseEntity.ok(deudaService.getImporteTotal(user));
+    }
+
+    /*@GetMapping("/distribucion-patrimonio")
+    public ResponseEntity<BigDecimal> getDistribucionCapital(@AuthenticationPrincipal UserEntity user) {
+        //todo
+    }*/
+
+
+
 }

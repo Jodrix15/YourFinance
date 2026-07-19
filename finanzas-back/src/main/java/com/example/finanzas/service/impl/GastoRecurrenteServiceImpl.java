@@ -4,8 +4,11 @@ import com.example.finanzas.service.GastoRecurrenteService;
 import com.example.finanzas.dto.gasto.ActualizarGasto;
 import com.example.finanzas.dto.gasto.CrearGasto;
 import com.example.finanzas.dto.gasto.NuevoPrecioRequest;
+import com.example.finanzas.dto.gasto.ResumenRecurrenteResponse;
 import com.example.finanzas.model.CategoriaEntity;
 import com.example.finanzas.model.UserEntity;
+import com.example.finanzas.model.enums.FrecuenciaEnum;
+import com.example.finanzas.model.enums.TipoPagoEnum;
 import com.example.finanzas.model.Gastos.GastoRecurrenteEntity;
 import com.example.finanzas.model.Gastos.RecurrentePrecioEntity;
 import com.example.finanzas.repository.CategoriaRepository;
@@ -17,7 +20,10 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.util.Comparator;
 import java.util.List;
 
 @Service
@@ -37,6 +43,36 @@ public class GastoRecurrenteServiceImpl implements GastoRecurrenteService {
 
     public List<GastoRecurrenteEntity> getAllGastosRecurrentes(UserEntity user) {
         return repository.findByUserId(user.getId());
+    }
+
+    public ResumenRecurrenteResponse getResumen(UserEntity user, TipoPagoEnum tipoPago) {
+        List<GastoRecurrenteEntity> items = getAllGastosRecurrentes(user).stream()
+                .filter(g -> g.getTipoPago() == tipoPago)
+                .toList();
+
+        long activos = items.stream().filter(GastoRecurrenteEntity::isActive).count();
+
+        BigDecimal gastoMensual = items.stream()
+                .filter(GastoRecurrenteEntity::isActive)
+                .map(GastoRecurrenteServiceImpl::costeMensual)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal gastoAnual = gastoMensual.multiply(BigDecimal.valueOf(12));
+
+        return new ResumenRecurrenteResponse(gastoMensual, gastoAnual, activos, items.size());
+    }
+
+    /** Coste mensual normalizado del gasto (anual → ÷12), usando el importe actual. */
+    private static BigDecimal costeMensual(GastoRecurrenteEntity gasto) {
+        BigDecimal importe = gasto.getHistorial().stream()
+                .max(Comparator.comparing(RecurrentePrecioEntity::getId))
+                .map(RecurrentePrecioEntity::getImporte)
+                .orElse(BigDecimal.ZERO);
+        if (importe == null) {
+            importe = BigDecimal.ZERO;
+        }
+        return gasto.getFrecuencia() == FrecuenciaEnum.ANUAL
+                ? importe.divide(BigDecimal.valueOf(12), 4, RoundingMode.HALF_UP)
+                : importe;
     }
 
     public RecurrentePrecioEntity getImporteActual(Long id, UserEntity user) {

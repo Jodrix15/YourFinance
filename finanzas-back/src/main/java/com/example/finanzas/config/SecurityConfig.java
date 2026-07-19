@@ -32,9 +32,10 @@ public class SecurityConfig {
             .csrf(AbstractHttpConfigurer::disable)
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/auth/**", "/h2-console/**", "/error").permitAll()
-                // Cada usuario gestiona su propio perfil aunque no sea ADMIN.
-                .requestMatchers("/api/user/**").authenticated()
-                .requestMatchers("/api/**").hasRole("ADMIN")
+                // Todos los recursos van filtrados por el usuario del token
+                // (@AuthenticationPrincipal), así que basta con estar autenticado.
+                // No hay endpoints exclusivos de ADMIN: un usuario registrado
+                // (ROLE_USER) puede usar la aplicación con normalidad.
                 .anyRequest().authenticated()
             )
             .sessionManagement(session -> session

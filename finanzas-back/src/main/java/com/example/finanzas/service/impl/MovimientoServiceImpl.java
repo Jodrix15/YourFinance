@@ -58,7 +58,8 @@ public class MovimientoServiceImpl implements MovimientoService {
                 page.getTotalPages(),
                 ingresos,
                 gastos,
-                inversiones
+                inversiones,
+                ingresos.subtract(gastos)
         );
     }
 
