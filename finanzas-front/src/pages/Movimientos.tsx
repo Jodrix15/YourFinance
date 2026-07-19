@@ -11,6 +11,8 @@ import Skeleton from '@/components/ui/Skeleton'
 import { notifyOk, notifyError } from '@/lib/notify'
 import { formatEur } from '@/lib/format'
 import { apiErrorMessage } from '@/lib/api'
+import Select from '@/components/ui/Select'
+import CategoriaSelect from '@/components/ui/CategoriaSelect'
 import type { Movimiento, TipoMovimiento } from '@/types/api'
 import s from './Movimientos.module.css'
 
@@ -59,7 +61,9 @@ export default function Movimientos() {
 
   const [form, setForm] = useState({ ...EMPTY })
   const [editing, setEditing] = useState<{ cuentaId: number; id: number } | null>(null)
-  const [formErr, setFormErr] = useState<string | null>(null)
+  const [err, setErr] = useState<{ field: string; msg: string } | null>(null)
+  const fieldErr = (f: string) =>
+    err?.field === f ? <div className={s.fieldError}>{err.msg}</div> : null
 
   const catsDelTipo = useMemo(
     () => (categorias ?? []).filter((c) => c.tipo === form.tipo),
@@ -118,12 +122,13 @@ export default function Movimientos() {
 
   function set<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((f) => ({ ...f, [key]: value }))
+    setErr(null)
   }
 
   function startEdit(m: Movimiento) {
     if (m.cuentaId == null) return
     setEditing({ cuentaId: m.cuentaId, id: m.id })
-    setFormErr(null)
+    setErr(null)
     setForm({
       tipo: m.tipoMovimiento,
       cuentaId: String(m.cuentaId),
@@ -138,7 +143,7 @@ export default function Movimientos() {
   function cancelEdit() {
     setEditing(null)
     setForm({ ...EMPTY })
-    setFormErr(null)
+    setErr(null)
   }
 
   async function resolverCategoriaId(name: string): Promise<number> {
@@ -152,14 +157,14 @@ export default function Movimientos() {
 
   async function submit(e: FormEvent) {
     e.preventDefault()
-    setFormErr(null)
+    setErr(null)
     const importe = num(form.importe)
     const catName = form.catName.trim()
-    if (!form.cuentaId) return setFormErr('Selecciona una cuenta.')
-    if (!catName) return setFormErr('Indica una categoría.')
+    if (!form.cuentaId) return setErr({ field: 'cuentaId', msg: 'Selecciona una cuenta.' })
+    if (!catName) return setErr({ field: 'catName', msg: 'Indica una categoría.' })
     if (Number.isNaN(importe) || importe <= 0)
-      return setFormErr('El importe debe ser mayor que 0.')
-    if (!form.fecha) return setFormErr('Indica la fecha.')
+      return setErr({ field: 'importe', msg: 'El importe debe ser mayor que 0.' })
+    if (!form.fecha) return setErr({ field: 'fecha', msg: 'Indica la fecha.' })
 
     try {
       const categoriaId = await resolverCategoriaId(catName)
@@ -178,9 +183,8 @@ export default function Movimientos() {
         notifyOk('Movimiento añadido')
       }
       cancelEdit()
-    } catch (err) {
-      setFormErr(apiErrorMessage(err))
-      notifyError(err)
+    } catch (error) {
+      notifyError(error)
     }
   }
 
@@ -224,22 +228,31 @@ export default function Movimientos() {
             Historial ({filtered.length})
           </div>
           <div className={s.filters}>
-            <select value={fTipo} onChange={(e) => setFTipo(e.target.value as typeof fTipo)}>
-              <option value="TODOS">Todos los tipos</option>
-              {TIPOS.map((t) => (
-                <option key={t} value={t}>
-                  {TIPO_LABEL[t]}
-                </option>
-              ))}
-            </select>
-            <select value={fCuenta} onChange={(e) => setFCuenta(e.target.value)}>
-              <option value="TODAS">Todas las cuentas</option>
-              {(cuentas ?? []).map((c) => (
-                <option key={c.id} value={String(c.id)}>
-                  {c.nombreCuenta}
-                </option>
-              ))}
-            </select>
+            <div className={s.filterSelect}>
+              <Select
+                value={fTipo}
+                options={[
+                  { value: 'TODOS', label: 'Todos los tipos' },
+                  ...TIPOS.map((t) => ({ value: t, label: TIPO_LABEL[t] })),
+                ]}
+                onChange={setFTipo}
+                ariaLabel="Filtrar por tipo"
+              />
+            </div>
+            <div className={s.filterSelect}>
+              <Select
+                value={fCuenta}
+                options={[
+                  { value: 'TODAS', label: 'Todas las cuentas' },
+                  ...(cuentas ?? []).map((c) => ({
+                    value: String(c.id),
+                    label: c.nombreCuenta,
+                  })),
+                ]}
+                onChange={setFCuenta}
+                ariaLabel="Filtrar por cuenta"
+              />
+            </div>
             <input
               type="text"
               placeholder="Buscar…"
@@ -312,50 +325,45 @@ export default function Movimientos() {
           </button>
         </div>
 
-        <form onSubmit={submit}>
+        <form onSubmit={submit} noValidate>
           <div className={s.row}>
             <div className={s.field}>
               <label>Tipo</label>
-              <select
+              <Select
                 value={form.tipo}
-                onChange={(e) => set('tipo', e.target.value as TipoMovimiento)}
-              >
-                {tipoOptions.map((t) => (
-                  <option key={t} value={t}>
-                    {TIPO_LABEL[t]}
-                  </option>
-                ))}
-              </select>
+                options={tipoOptions.map((t) => ({ value: t, label: TIPO_LABEL[t] }))}
+                onChange={(v) => {
+                  set('tipo', v)
+                  set('catName', '')
+                }}
+                ariaLabel="Tipo"
+              />
             </div>
             <div className={s.field}>
               <label>Cuenta</label>
-              <select
+              <Select
                 value={form.cuentaId}
-                onChange={(e) => set('cuentaId', e.target.value)}
+                options={(cuentas ?? []).map((c) => ({
+                  value: String(c.id),
+                  label: c.nombreCuenta,
+                }))}
+                placeholder="Selecciona"
+                invalid={err?.field === 'cuentaId'}
                 disabled={!!editing}
-              >
-                <option value="">Selecciona</option>
-                {(cuentas ?? []).map((c) => (
-                  <option key={c.id} value={String(c.id)}>
-                    {c.nombreCuenta}
-                  </option>
-                ))}
-              </select>
+                onChange={(v) => set('cuentaId', v)}
+                ariaLabel="Cuenta"
+              />
+              {fieldErr('cuentaId')}
             </div>
             <div className={s.field}>
               <label>Categoría</label>
-              <input
-                type="text"
-                list="mov-cats"
-                placeholder="Ej: Alimentación"
+              <CategoriaSelect
                 value={form.catName}
-                onChange={(e) => set('catName', e.target.value)}
+                categorias={catsDelTipo}
+                invalid={err?.field === 'catName'}
+                onChange={(v) => set('catName', v)}
               />
-              <datalist id="mov-cats">
-                {catsDelTipo.map((c) => (
-                  <option key={c.id} value={c.nombre} />
-                ))}
-              </datalist>
+              {fieldErr('catName')}
             </div>
           </div>
           <div className={s.row}>
@@ -367,16 +375,20 @@ export default function Movimientos() {
                 min="0"
                 placeholder="0,00"
                 value={form.importe}
+                aria-invalid={err?.field === 'importe'}
                 onChange={(e) => set('importe', e.target.value)}
               />
+              {fieldErr('importe')}
             </div>
             <div className={s.field}>
               <label>Fecha</label>
               <input
                 type="date"
                 value={form.fecha}
+                aria-invalid={err?.field === 'fecha'}
                 onChange={(e) => set('fecha', e.target.value)}
               />
+              {fieldErr('fecha')}
             </div>
             <div className={s.field}>
               <label>Descripción</label>
@@ -392,7 +404,6 @@ export default function Movimientos() {
             Si la categoría no existe, se crea automáticamente con el tipo elegido. Haz clic
             en una fila del historial para editarla.
           </p>
-          {formErr && <p className={s.error}>{formErr}</p>}
           <div className={s.actions} style={{ marginTop: 4 }}>
             <button className={s.btn} type="submit" disabled={saving}>
               {saving ? 'Guardando…' : editing ? 'Guardar cambios' : 'Añadir movimiento'}

@@ -8,6 +8,7 @@ import {
   useEliminarRecurrente,
   useNuevoPrecioRecurrente,
   useRecurrentes,
+  useResumenRecurrente,
 } from '@/hooks/useFinance'
 import { useTheme } from '@/context/ThemeContext'
 import Modal from '@/components/ui/Modal'
@@ -18,18 +19,13 @@ import { notifyOk, notifyError } from '@/lib/notify'
 import { chartTheme } from '@/lib/chartSetup'
 import { formatEur } from '@/lib/format'
 import { apiErrorMessage } from '@/lib/api'
+import Select from '@/components/ui/Select'
+import CategoriaSelect from '@/components/ui/CategoriaSelect'
 import type { Frecuencia, GastoRecurrenteResponse } from '@/types/api'
 import s from './Suscripciones.module.css'
 
 const num = (v: string) => (v.trim() === '' ? NaN : Number(v.replace(',', '.')))
-const sum = (arr: number[]) => arr.reduce((a, b) => a + Number(b || 0), 0)
 const today = () => new Date().toISOString().slice(0, 10)
-
-// Coste mensual normalizado (anual → /12)
-function mensual(sub: GastoRecurrenteResponse): number {
-  const imp = Number(sub.importeActual || 0)
-  return sub.frecuencia === 'ANUAL' ? imp / 12 : imp
-}
 
 type Mode = 'nueva' | 'actualizar'
 
@@ -46,6 +42,7 @@ export default function Suscripciones() {
   const { theme } = useTheme()
   const confirm = useConfirm()
   const { data: recurrentes, isLoading, isError, error } = useRecurrentes()
+  const { data: resumen } = useResumenRecurrente('SUSCRIPCION')
   const { data: categorias } = useCategorias()
 
   const crearRecurrente = useCrearRecurrente()
@@ -62,7 +59,9 @@ export default function Suscripciones() {
   const [mode, setMode] = useState<Mode>('nueva')
   const [selId, setSelId] = useState('')
   const [form, setForm] = useState({ ...EMPTY })
-  const [formErr, setFormErr] = useState<string | null>(null)
+  const [err, setErr] = useState<{ field: string; msg: string } | null>(null)
+  const fieldErr = (f: string) =>
+    err?.field === f ? <div className={s.fieldError}>{err.msg}</div> : null
   const [detailSub, setDetailSub] = useState<GastoRecurrenteResponse | null>(null)
 
   const formRef = useRef<HTMLDivElement>(null)
@@ -104,17 +103,19 @@ export default function Suscripciones() {
   if (isError) return <p style={{ color: 'var(--down)' }}>{apiErrorMessage(error)}</p>
 
   const subs = (recurrentes ?? []).filter((r) => r.tipoPago === 'SUSCRIPCION')
-  const activas = subs.filter((r) => r.active)
-  const gastoMensual = sum(activas.map(mensual))
-  const gastoAnual = gastoMensual * 12
+  const gastoMensual = resumen?.gastoMensual ?? 0
+  const gastoAnual = resumen?.gastoAnual ?? 0
+  const numActivas = resumen?.activos ?? subs.filter((r) => r.active).length
+  const numTotal = resumen?.total ?? subs.length
 
   function set<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((f) => ({ ...f, [key]: value }))
+    setErr(null)
   }
 
   function switchMode(m: Mode) {
     setMode(m)
-    setFormErr(null)
+    setErr(null)
     setSelId('')
     setForm({ ...EMPTY })
   }
@@ -143,15 +144,18 @@ export default function Suscripciones() {
 
   async function submit(e: FormEvent) {
     e.preventDefault()
-    setFormErr(null)
+    setErr(null)
     const nombre = form.nombre.trim()
     const catName = form.catName.trim()
     const importe = num(form.importe)
-    if (!nombre) return setFormErr('Indica el nombre de la suscripción.')
-    if (!catName) return setFormErr('Indica una categoría.')
+    if (mode === 'actualizar' && !selId)
+      return setErr({ field: 'selId', msg: 'Selecciona una suscripción.' })
+    if (!nombre) return setErr({ field: 'nombre', msg: 'Indica el nombre de la suscripción.' })
+    if (!catName) return setErr({ field: 'catName', msg: 'Indica una categoría.' })
     if (Number.isNaN(importe) || importe <= 0)
-      return setFormErr('El importe debe ser mayor que 0.')
-    if (!form.fechaPrimerPago) return setFormErr('Indica la fecha del primer pago.')
+      return setErr({ field: 'importe', msg: 'El importe debe ser mayor que 0.' })
+    if (!form.fechaPrimerPago)
+      return setErr({ field: 'fechaPrimerPago', msg: 'Indica la fecha del primer pago.' })
 
     try {
       const categoriaId = await resolverCategoriaId(catName)
@@ -167,7 +171,6 @@ export default function Suscripciones() {
           importeInicial: importe,
         })
       } else {
-        if (!selId) return setFormErr('Selecciona una suscripción.')
         const sub = subs.find((x) => x.id === Number(selId))
         await actualizarRecurrente.mutateAsync({
           id: Number(selId),
@@ -189,9 +192,8 @@ export default function Suscripciones() {
       }
       notifyOk(mode === 'nueva' ? 'Suscripción creada' : 'Suscripción actualizada')
       switchMode(mode)
-    } catch (err) {
-      setFormErr(apiErrorMessage(err))
-      notifyError(err)
+    } catch (error) {
+      notifyError(error)
     }
   }
 
@@ -267,11 +269,11 @@ export default function Suscripciones() {
         </div>
         <div className={s.kpi}>
           <div className={s.kpiLabel}>Activas</div>
-          <div className={s.kpiValue}>{activas.length}</div>
+          <div className={s.kpiValue}>{numActivas}</div>
         </div>
         <div className={s.kpi}>
           <div className={s.kpiLabel}>Total</div>
-          <div className={s.kpiValue}>{subs.length}</div>
+          <div className={s.kpiValue}>{numTotal}</div>
         </div>
       </div>
 
@@ -344,19 +346,22 @@ export default function Suscripciones() {
           </button>
         </div>
 
-        <form onSubmit={submit}>
+        <form onSubmit={submit} noValidate>
           {mode === 'actualizar' && (
             <div className={s.row}>
               <div className={s.field}>
                 <label>Suscripción a actualizar</label>
-                <select value={selId} onChange={(e) => loadSub(e.target.value)}>
-                  <option value="">Selecciona</option>
-                  {subs.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {r.nombre}
-                    </option>
-                  ))}
-                </select>
+                <Select
+                  value={selId}
+                  options={subs.map((r) => ({ value: String(r.id), label: r.nombre }))}
+                  placeholder="Selecciona"
+                  invalid={err?.field === 'selId'}
+                  onChange={(v) => {
+                    loadSub(v)
+                    setErr(null)
+                  }}
+                />
+                {fieldErr('selId')}
               </div>
             </div>
           )}
@@ -370,35 +375,34 @@ export default function Suscripciones() {
                     type="text"
                     placeholder="Ej: Netflix"
                     value={form.nombre}
+                    aria-invalid={err?.field === 'nombre'}
                     onChange={(e) => set('nombre', e.target.value)}
                   />
+                  {fieldErr('nombre')}
                 </div>
                 <div className={s.field}>
                   <label>Categoría</label>
-                  <input
-                    type="text"
-                    list="sub-cats"
-                    placeholder="Ej: Streaming"
+                  <CategoriaSelect
                     value={form.catName}
-                    onChange={(e) => set('catName', e.target.value)}
+                    categorias={gastoCats}
+                    invalid={err?.field === 'catName'}
+                    onChange={(v) => set('catName', v)}
                   />
-                  <datalist id="sub-cats">
-                    {gastoCats.map((c) => (
-                      <option key={c.id} value={c.nombre} />
-                    ))}
-                  </datalist>
+                  {fieldErr('catName')}
                 </div>
               </div>
               <div className={s.row}>
                 <div className={s.field}>
                   <label>Frecuencia</label>
-                  <select
+                  <Select
                     value={form.frecuencia}
-                    onChange={(e) => set('frecuencia', e.target.value as Frecuencia)}
-                  >
-                    <option value="MENSUAL">Mensual</option>
-                    <option value="ANUAL">Anual</option>
-                  </select>
+                    options={[
+                      { value: 'MENSUAL', label: 'Mensual' },
+                      { value: 'ANUAL', label: 'Anual' },
+                    ]}
+                    onChange={(v) => set('frecuencia', v as Frecuencia)}
+                    ariaLabel="Frecuencia"
+                  />
                 </div>
                 <div className={s.field}>
                   <label>Importe (€)</label>
@@ -408,16 +412,20 @@ export default function Suscripciones() {
                     min="0"
                     placeholder="0,00"
                     value={form.importe}
+                    aria-invalid={err?.field === 'importe'}
                     onChange={(e) => set('importe', e.target.value)}
                   />
+                  {fieldErr('importe')}
                 </div>
                 <div className={s.field}>
                   <label>Fecha primer pago</label>
                   <input
                     type="date"
                     value={form.fechaPrimerPago}
+                    aria-invalid={err?.field === 'fechaPrimerPago'}
                     onChange={(e) => set('fechaPrimerPago', e.target.value)}
                   />
+                  {fieldErr('fechaPrimerPago')}
                 </div>
                 <label className={s.check}>
                   <input
@@ -432,7 +440,6 @@ export default function Suscripciones() {
                 Si la categoría no existe, se crea automáticamente (tipo Gasto). Al
                 actualizar, si cambias el importe se registra como nueva variación de precio.
               </p>
-              {formErr && <p className={s.error}>{formErr}</p>}
               <button className={s.btn} type="submit" disabled={saving} style={{ marginTop: 4 }}>
                 {saving
                   ? 'Guardando…'

@@ -12,6 +12,8 @@ import Skeleton from '@/components/ui/Skeleton'
 import { notifyOk, notifyError } from '@/lib/notify'
 import { formatEur } from '@/lib/format'
 import { apiErrorMessage } from '@/lib/api'
+import Select from '@/components/ui/Select'
+import CategoriaSelect from '@/components/ui/CategoriaSelect'
 import type { CuentaResponse, Movimiento, TipoMovimiento } from '@/types/api'
 import s from '@/pages/Movimientos.module.css'
 
@@ -62,7 +64,9 @@ export default function AccountMovimientos({ cuenta, onBack }: Props) {
   const [mode, setMode] = useState<Mode>('nueva')
   const [selId, setSelId] = useState('')
   const [form, setForm] = useState({ ...EMPTY })
-  const [formErr, setFormErr] = useState<string | null>(null)
+  const [err, setErr] = useState<{ field: string; msg: string } | null>(null)
+  const fieldErr = (f: string) =>
+    err?.field === f ? <div className={s.fieldError}>{err.msg}</div> : null
 
   const catsDelTipo = useMemo(
     () => (categorias ?? []).filter((c) => c.tipo === form.tipo),
@@ -94,7 +98,7 @@ export default function AccountMovimientos({ cuenta, onBack }: Props) {
   const totalElementos = data?.totalElementos ?? 0
   const ingresos = data?.ingresos ?? 0
   const gastos = data?.gastos ?? 0
-  const diferencia = ingresos - gastos
+  const diferencia = data?.diferencia ?? 0
 
   function cambiarFiltro(fn: () => void) {
     fn()
@@ -120,12 +124,13 @@ export default function AccountMovimientos({ cuenta, onBack }: Props) {
 
   function set<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((f) => ({ ...f, [key]: value }))
+    setErr(null)
   }
 
   function resetForm() {
     setSelId('')
     setForm({ ...EMPTY })
-    setFormErr(null)
+    setErr(null)
   }
   function switchMode(m: Mode) {
     setMode(m)
@@ -135,7 +140,7 @@ export default function AccountMovimientos({ cuenta, onBack }: Props) {
   function startEdit(m: Movimiento) {
     setMode('actualizar')
     setSelId(String(m.id))
-    setFormErr(null)
+    setErr(null)
     setForm({
       tipo: m.tipoMovimiento,
       catName: m.categoriaNombre ?? '',
@@ -173,13 +178,17 @@ export default function AccountMovimientos({ cuenta, onBack }: Props) {
 
   async function submit(e: FormEvent) {
     e.preventDefault()
-    setFormErr(null)
+    setErr(null)
     const importe = num(form.importe)
     const catName = form.catName.trim()
-    if (mode === 'actualizar' && !selId) return setFormErr('Selecciona una transacción del historial.')
-    if (!catName) return setFormErr('Indica una categoría.')
-    if (Number.isNaN(importe) || importe <= 0) return setFormErr('El importe debe ser mayor que 0.')
-    if (!form.fecha) return setFormErr('Indica la fecha.')
+    if (mode === 'actualizar' && !selId) {
+      notifyError('Selecciona una transacción del historial.')
+      return
+    }
+    if (!catName) return setErr({ field: 'catName', msg: 'Indica una categoría.' })
+    if (Number.isNaN(importe) || importe <= 0)
+      return setErr({ field: 'importe', msg: 'El importe debe ser mayor que 0.' })
+    if (!form.fecha) return setErr({ field: 'fecha', msg: 'Indica la fecha.' })
     try {
       const categoriaId = await resolverCategoriaId(catName)
       const dto = { tipoMovimiento: form.tipo, categoriaId, importe, descripcion: form.descripcion.trim() || undefined, fecha: form.fecha }
@@ -191,9 +200,8 @@ export default function AccountMovimientos({ cuenta, onBack }: Props) {
         notifyOk('Transacción añadida')
       }
       resetForm()
-    } catch (err) {
-      setFormErr(apiErrorMessage(err))
-      notifyError(err)
+    } catch (error) {
+      notifyError(error)
     }
   }
 
@@ -245,18 +253,42 @@ export default function AccountMovimientos({ cuenta, onBack }: Props) {
         <div className={s.cardHead}>
           <div className="sec-title" style={{ marginBottom: 0 }}>Historial ({totalElementos})</div>
           <div className={s.filters}>
-            <select value={fTipo} onChange={(e) => cambiarFiltro(() => setFTipo(e.target.value as typeof fTipo))}>
-              <option value="TODOS">Todos los tipos</option>
-              {TIPOS.map((t) => (<option key={t} value={t}>{TIPO_LABEL[t]}</option>))}
-            </select>
-            <select value={fMes} onChange={(e) => cambiarFiltro(() => setFMes(e.target.value))}>
-              <option value="">Todos los meses</option>
-              {MESES.map((mes, idx) => (<option key={mes} value={String(idx + 1).padStart(2, '0')}>{mes}</option>))}
-            </select>
-            <select value={fAnio} onChange={(e) => cambiarFiltro(() => setFAnio(e.target.value))}>
-              <option value="">Todos los años</option>
-              {ANIOS.map((y) => (<option key={y} value={y}>{y}</option>))}
-            </select>
+            <div className={s.filterSelect}>
+              <Select
+                value={fTipo}
+                options={[
+                  { value: 'TODOS', label: 'Todos los tipos' },
+                  ...TIPOS.map((t) => ({ value: t, label: TIPO_LABEL[t] })),
+                ]}
+                onChange={(v) => cambiarFiltro(() => setFTipo(v))}
+                ariaLabel="Filtrar por tipo"
+              />
+            </div>
+            <div className={s.filterSelect}>
+              <Select
+                value={fMes}
+                options={[
+                  { value: '', label: 'Todos los meses' },
+                  ...MESES.map((mes, idx) => ({
+                    value: String(idx + 1).padStart(2, '0'),
+                    label: mes,
+                  })),
+                ]}
+                onChange={(v) => cambiarFiltro(() => setFMes(v))}
+                ariaLabel="Filtrar por mes"
+              />
+            </div>
+            <div className={s.filterSelect}>
+              <Select
+                value={fAnio}
+                options={[
+                  { value: '', label: 'Todos los años' },
+                  ...ANIOS.map((y) => ({ value: y, label: y })),
+                ]}
+                onChange={(v) => cambiarFiltro(() => setFAnio(v))}
+                ariaLabel="Filtrar por año"
+              />
+            </div>
             <input type="text" placeholder="Buscar…" value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
         </div>
@@ -312,7 +344,7 @@ export default function AccountMovimientos({ cuenta, onBack }: Props) {
           <button type="button" className={`${s.tab} ${mode === 'nueva' ? s.tabActive : ''}`} onClick={() => switchMode('nueva')}>Nueva transacción</button>
           <button type="button" className={`${s.tab} ${mode === 'actualizar' ? s.tabActive : ''}`} onClick={() => switchMode('actualizar')}>Actualizar</button>
         </div>
-        <form onSubmit={submit}>
+        <form onSubmit={submit} noValidate>
           {mode === 'actualizar' && !selId && (
             <p className={s.hint}>Haz clic en una fila del historial para editarla o eliminarla.</p>
           )}
@@ -322,25 +354,35 @@ export default function AccountMovimientos({ cuenta, onBack }: Props) {
               <div className={s.row}>
                 <div className={s.field}>
                   <label>Tipo</label>
-                  <select value={form.tipo} onChange={(e) => set('tipo', e.target.value as TipoMovimiento)}>
-                    {tipoOptions.map((t) => (<option key={t} value={t}>{TIPO_LABEL[t]}</option>))}
-                  </select>
+                  <Select
+                    value={form.tipo}
+                    options={tipoOptions.map((t) => ({ value: t, label: TIPO_LABEL[t] }))}
+                    onChange={(v) => {
+                      set('tipo', v)
+                      set('catName', '')
+                    }}
+                    ariaLabel="Tipo"
+                  />
                 </div>
                 <div className={s.field}>
                   <label>Categoría</label>
-                  <input type="text" list="mov-cats" placeholder="Ej: Alimentación" value={form.catName} onChange={(e) => set('catName', e.target.value)} />
-                  <datalist id="mov-cats">{catsDelTipo.map((c) => (<option key={c.id} value={c.nombre} />))}</datalist>
+                  <CategoriaSelect
+                    value={form.catName}
+                    categorias={catsDelTipo}
+                    invalid={err?.field === 'catName'}
+                    onChange={(v) => set('catName', v)}
+                  />
+                  {fieldErr('catName')}
                 </div>
               </div>
               <div className={s.row}>
-                <div className={s.field}><label>Importe (€)</label><input type="number" step="0.01" min="0" placeholder="0,00" value={form.importe} onChange={(e) => set('importe', e.target.value)} /></div>
-                <div className={s.field}><label>Fecha</label><input type="date" value={form.fecha} onChange={(e) => set('fecha', e.target.value)} /></div>
+                <div className={s.field}><label>Importe (€)</label><input type="number" step="0.01" min="0" placeholder="0,00" value={form.importe} aria-invalid={err?.field === 'importe'} onChange={(e) => set('importe', e.target.value)} />{fieldErr('importe')}</div>
+                <div className={s.field}><label>Fecha</label><input type="date" value={form.fecha} aria-invalid={err?.field === 'fecha'} onChange={(e) => set('fecha', e.target.value)} />{fieldErr('fecha')}</div>
                 <div className={s.field}><label>Descripción</label><input type="text" placeholder="Opcional" value={form.descripcion} onChange={(e) => set('descripcion', e.target.value)} /></div>
               </div>
               <p className={s.hint}>
                 Si la categoría no existe, se crea automáticamente con el tipo elegido. También puedes hacer clic en una fila del historial para editarla.
               </p>
-              {formErr && <p className={s.error}>{formErr}</p>}
               <div className={s.actions} style={{ marginTop: 4 }}>
                 <button className={s.btn} type="submit" disabled={saving}>{saving ? 'Guardando…' : mode === 'nueva' ? 'Añadir transacción' : 'Guardar cambios'}</button>
                 {mode === 'actualizar' && selId && (

@@ -24,6 +24,9 @@
   color: var(--tx1);
   flex-shrink: 0;
 }
+.brand .brandText {
+  color: var(--tx1);
+}
 .brand span {
   color: var(--accent);
 }

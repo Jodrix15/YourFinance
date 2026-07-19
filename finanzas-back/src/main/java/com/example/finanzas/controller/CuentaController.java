@@ -2,6 +2,7 @@ package com.example.finanzas.controller;
 
 import com.example.finanzas.dto.cuenta.CuentaDTO;
 import com.example.finanzas.dto.cuenta.CuentaResponse;
+import com.example.finanzas.dto.cuenta.ResumenCuentaResponse;
 import com.example.finanzas.dto.cuenta.TransaccionDTO;
 import com.example.finanzas.dto.cuenta.TransaccionResponse;
 import com.example.finanzas.model.UserEntity;
@@ -28,6 +29,14 @@ public class CuentaController {
                 .map(CuentaResponse::from)
                 .toList();
         return ResponseEntity.ok(cuentas);
+    }
+
+    @GetMapping("/resumen")
+    public ResponseEntity<ResumenCuentaResponse> getResumen(
+            @RequestParam(required = false) Integer anio,
+            @RequestParam(required = false) Integer mes,
+            @AuthenticationPrincipal UserEntity user) {
+        return ResponseEntity.ok(service.getResumen(user, anio, mes));
     }
 
     @GetMapping("/{id}")

@@ -4,9 +4,12 @@ import { useAuth } from '@/context/AuthContext'
 import { apiErrorMessage } from '@/lib/api'
 import { notifyOk, notifyError } from '@/lib/notify'
 import Skeleton from '@/components/ui/Skeleton'
+import Select from '@/components/ui/Select'
 import CategoriasManager from '@/components/ajustes/CategoriasManager'
 import type { Moneda } from '@/types/api'
 import s from './Ajustes.module.css'
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 type Seccion = 'datos' | 'seguridad' | 'cuenta' | 'categorias'
 
@@ -66,6 +69,10 @@ export default function Ajustes() {
   const [email, setEmail] = useState('')
   const [fotoPerfil, setFotoPerfil] = useState<string | null>(null)
   const [savingProfile, setSavingProfile] = useState(false)
+  const [profileErrors, setProfileErrors] = useState<{
+    username?: string
+    email?: string
+  }>({})
   const fileRef = useRef<HTMLInputElement>(null)
 
   // Contraseña
@@ -73,6 +80,11 @@ export default function Ajustes() {
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [savingPassword, setSavingPassword] = useState(false)
+  const [passwordErrors, setPasswordErrors] = useState<{
+    currentPassword?: string
+    newPassword?: string
+    confirmPassword?: string
+  }>({})
 
   // Cuenta
   const [moneda, setMoneda] = useState<Moneda>('EUR')
@@ -124,17 +136,29 @@ export default function Ajustes() {
 
   async function saveProfile(e: FormEvent) {
     e.preventDefault()
+    const u = username.trim()
+    const em = email.trim()
+    const errs: typeof profileErrors = {}
+    if (u.length < 3) errs.username = 'Debe tener al menos 3 caracteres'
+    else if (u.length > 30) errs.username = 'Máximo 30 caracteres'
+    if (em && !EMAIL_RE.test(em)) errs.email = 'El email no es válido'
+    setProfileErrors(errs)
+    if (Object.keys(errs).length) return
+
     setSavingProfile(true)
     try {
       const profile = await userApi.updateProfile({
-        username: username.trim(),
-        email: email.trim() || null,
+        username: u,
+        email: em || null,
         fotoPerfil,
       })
       applyProfile(profile)
       notifyOk('Perfil actualizado')
     } catch (err) {
-      notifyError(err)
+      const msg = apiErrorMessage(err)
+      if (/usuario/i.test(msg)) setProfileErrors({ username: msg })
+      else if (/email/i.test(msg)) setProfileErrors({ email: msg })
+      else notifyError(err)
     } finally {
       setSavingProfile(false)
     }
@@ -142,10 +166,14 @@ export default function Ajustes() {
 
   async function savePassword(e: FormEvent) {
     e.preventDefault()
-    if (newPassword !== confirmPassword) {
-      notifyError('La confirmación no coincide con la nueva contraseña')
-      return
-    }
+    const errs: typeof passwordErrors = {}
+    if (!currentPassword) errs.currentPassword = 'Introduce tu contraseña actual'
+    if (newPassword.length < 6) errs.newPassword = 'Mínimo 6 caracteres'
+    if (confirmPassword !== newPassword)
+      errs.confirmPassword = 'No coincide con la nueva contraseña'
+    setPasswordErrors(errs)
+    if (Object.keys(errs).length) return
+
     setSavingPassword(true)
     try {
       await userApi.changePassword({ currentPassword, newPassword })
@@ -154,7 +182,10 @@ export default function Ajustes() {
       setConfirmPassword('')
       notifyOk('Contraseña actualizada')
     } catch (err) {
-      notifyError(err)
+      const msg = apiErrorMessage(err)
+      if (/actual/i.test(msg)) setPasswordErrors({ currentPassword: msg })
+      else if (/nueva|distinta/i.test(msg)) setPasswordErrors({ newPassword: msg })
+      else notifyError(err)
     } finally {
       setSavingPassword(false)
     }
@@ -212,7 +243,7 @@ export default function Ajustes() {
           ) : seccion === 'datos' ? (
             <section className={s.card}>
               <h2 className={s.cardTitle}>Datos personales</h2>
-              <form onSubmit={saveProfile}>
+              <form onSubmit={saveProfile} noValidate>
                 <div className={s.avatarRow}>
                   <div className={s.avatarPreview}>
                     {fotoPerfil ? (
@@ -255,11 +286,17 @@ export default function Ajustes() {
                     <input
                       type="text"
                       value={username}
-                      onChange={(e) => setUsername(e.target.value)}
-                      minLength={3}
+                      aria-invalid={!!profileErrors.username}
                       maxLength={30}
-                      required
+                      onChange={(e) => {
+                        setUsername(e.target.value)
+                        if (profileErrors.username)
+                          setProfileErrors((p) => ({ ...p, username: undefined }))
+                      }}
                     />
+                    {profileErrors.username && (
+                      <div className={s.fieldError}>{profileErrors.username}</div>
+                    )}
                   </div>
                   <div className={s.field}>
                     <label>Email</label>
@@ -267,8 +304,16 @@ export default function Ajustes() {
                       type="email"
                       placeholder="tu@email.com"
                       value={email}
-                      onChange={(e) => setEmail(e.target.value)}
+                      aria-invalid={!!profileErrors.email}
+                      onChange={(e) => {
+                        setEmail(e.target.value)
+                        if (profileErrors.email)
+                          setProfileErrors((p) => ({ ...p, email: undefined }))
+                      }}
                     />
+                    {profileErrors.email && (
+                      <div className={s.fieldError}>{profileErrors.email}</div>
+                    )}
                   </div>
                 </div>
 
@@ -282,16 +327,23 @@ export default function Ajustes() {
           ) : seccion === 'seguridad' ? (
             <section className={s.card}>
               <h2 className={s.cardTitle}>Seguridad</h2>
-              <form onSubmit={savePassword}>
+              <form onSubmit={savePassword} noValidate>
                 <div className={s.field}>
                   <label>Contraseña actual</label>
                   <input
                     type="password"
                     autoComplete="current-password"
                     value={currentPassword}
-                    onChange={(e) => setCurrentPassword(e.target.value)}
-                    required
+                    aria-invalid={!!passwordErrors.currentPassword}
+                    onChange={(e) => {
+                      setCurrentPassword(e.target.value)
+                      if (passwordErrors.currentPassword)
+                        setPasswordErrors((p) => ({ ...p, currentPassword: undefined }))
+                    }}
                   />
+                  {passwordErrors.currentPassword && (
+                    <div className={s.fieldError}>{passwordErrors.currentPassword}</div>
+                  )}
                 </div>
                 <div className={s.grid2}>
                   <div className={s.field}>
@@ -301,10 +353,16 @@ export default function Ajustes() {
                       autoComplete="new-password"
                       placeholder="Mínimo 6 caracteres"
                       value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      minLength={6}
-                      required
+                      aria-invalid={!!passwordErrors.newPassword}
+                      onChange={(e) => {
+                        setNewPassword(e.target.value)
+                        if (passwordErrors.newPassword)
+                          setPasswordErrors((p) => ({ ...p, newPassword: undefined }))
+                      }}
                     />
+                    {passwordErrors.newPassword && (
+                      <div className={s.fieldError}>{passwordErrors.newPassword}</div>
+                    )}
                   </div>
                   <div className={s.field}>
                     <label>Repetir nueva contraseña</label>
@@ -312,10 +370,16 @@ export default function Ajustes() {
                       type="password"
                       autoComplete="new-password"
                       value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      minLength={6}
-                      required
+                      aria-invalid={!!passwordErrors.confirmPassword}
+                      onChange={(e) => {
+                        setConfirmPassword(e.target.value)
+                        if (passwordErrors.confirmPassword)
+                          setPasswordErrors((p) => ({ ...p, confirmPassword: undefined }))
+                      }}
                     />
+                    {passwordErrors.confirmPassword && (
+                      <div className={s.fieldError}>{passwordErrors.confirmPassword}</div>
+                    )}
                   </div>
                 </div>
                 <div className={s.actions}>
@@ -332,28 +396,23 @@ export default function Ajustes() {
                 <div className={s.grid2}>
                   <div className={s.field}>
                     <label>Moneda</label>
-                    <select
+                    <Select
                       value={moneda}
-                      onChange={(e) => setMoneda(e.target.value as Moneda)}
-                    >
-                      {MONEDAS.map((m) => (
-                        <option key={m.value} value={m.value}>
-                          {m.label}
-                        </option>
-                      ))}
-                    </select>
+                      options={MONEDAS}
+                      onChange={setMoneda}
+                      ariaLabel="Moneda"
+                    />
                   </div>
                   <div className={s.field}>
                     <label>
                       Idioma <span className={s.badge}>próximamente</span>
                     </label>
-                    <select value={idioma} onChange={(e) => setIdioma(e.target.value)}>
-                      {IDIOMAS.map((i) => (
-                        <option key={i.value} value={i.value}>
-                          {i.label}
-                        </option>
-                      ))}
-                    </select>
+                    <Select
+                      value={idioma}
+                      options={IDIOMAS}
+                      onChange={setIdioma}
+                      ariaLabel="Idioma"
+                    />
                   </div>
                 </div>
                 <div className={s.actions}>

@@ -1,31 +1,38 @@
 import { useRef, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useCrearCuenta, useCuentas, useMovimientos } from '@/hooks/useFinance'
+import { useCrearCuenta, useCuentas, useResumenCuenta } from '@/hooks/useFinance'
 import Skeleton from '@/components/ui/Skeleton'
 import EmptyState from '@/components/ui/EmptyState'
 import { notifyOk, notifyError } from '@/lib/notify'
 import { formatEur } from '@/lib/format'
 import { apiErrorMessage } from '@/lib/api'
+import Select from '@/components/ui/Select'
 import s from './Cuentas.module.css'
 
 const num = (v: string) => (v.trim() === '' ? NaN : Number(v.replace(',', '.')))
-const sum = (arr: number[]) => arr.reduce((a, b) => a + Number(b || 0), 0)
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
 const NOW = new Date()
 const CUR_MES = String(NOW.getMonth() + 1).padStart(2, '0')
 const CUR_ANIO = String(NOW.getFullYear())
+// Años seleccionables: el actual y los 6 anteriores.
+const ANIOS = Array.from({ length: 7 }, (_, i) => String(NOW.getFullYear() - i))
 
 export default function Cuentas() {
   const navigate = useNavigate()
   const { data: cuentas, isLoading, isError, error } = useCuentas()
-  const { data: movs } = useMovimientos()
   const crearCuenta = useCrearCuenta()
 
   const [fMes, setFMes] = useState(CUR_MES)
   const [fAnio, setFAnio] = useState(CUR_ANIO)
+  const { data: resumen } = useResumenCuenta(
+    fAnio === '' ? undefined : Number(fAnio),
+    fMes === '' ? undefined : Number(fMes),
+  )
   const [nombre, setNombre] = useState('')
   const [importe, setImporte] = useState('')
-  const [formErr, setFormErr] = useState<string | null>(null)
+  const [err, setErr] = useState<{ field: string; msg: string } | null>(null)
+  const fieldErr = (f: string) =>
+    err?.field === f ? <div className={s.fieldError}>{err.msg}</div> : null
 
   const formRef = useRef<HTMLFormElement>(null)
   function irAlFormulario() {
@@ -65,32 +72,27 @@ export default function Cuentas() {
   if (isError) return <p style={{ color: 'var(--down)' }}>{apiErrorMessage(error)}</p>
 
   const list = cuentas ?? []
-  const total = sum(list.map((c) => c.importe))
-  const allMovs = movs ?? []
-  const anios = [...new Set([...allMovs.map((m) => (m.fechaTransaccion ?? '').slice(0, 4)).filter(Boolean), CUR_ANIO])].sort().reverse()
-  const periodo = allMovs.filter((m) => {
-    const f = m.fechaTransaccion ?? ''
-    return (fAnio === '' || f.slice(0, 4) === fAnio) && (fMes === '' || f.slice(5, 7) === fMes)
-  })
-  const ingresos = sum(periodo.filter((m) => m.tipoMovimiento === 'INGRESO').map((m) => m.importe))
-  const gastos = sum(periodo.filter((m) => m.tipoMovimiento === 'GASTO').map((m) => Math.abs(m.importe)))
-  const diferencia = ingresos - gastos
+  const total = resumen?.totalCuentas ?? 0
+  const ingresos = resumen?.ingresos ?? 0
+  const gastos = resumen?.gastos ?? 0
+  const diferencia = resumen?.diferencia ?? 0
+  const numeroCuentas = resumen?.numeroCuentas ?? list.length
 
   async function submit(e: FormEvent) {
     e.preventDefault()
-    setFormErr(null)
+    setErr(null)
     const nom = nombre.trim()
     const imp = num(importe)
-    if (!nom) return setFormErr('Indica el nombre de la cuenta.')
-    if (Number.isNaN(imp)) return setFormErr('Indica el saldo inicial (puede ser 0).')
+    if (!nom) return setErr({ field: 'nombre', msg: 'Indica el nombre de la cuenta.' })
+    if (Number.isNaN(imp))
+      return setErr({ field: 'importe', msg: 'Indica el saldo inicial (puede ser 0).' })
     try {
       await crearCuenta.mutateAsync({ nombreCuenta: nom, importe: imp })
       notifyOk('Cuenta creada')
       setNombre('')
       setImporte('')
-    } catch (err) {
-      setFormErr(apiErrorMessage(err))
-      notifyError(err)
+    } catch (error) {
+      notifyError(error)
     }
   }
 
@@ -102,14 +104,31 @@ export default function Cuentas() {
       </div>
 
       <div className={s.filters}>
-        <select value={fMes} onChange={(e) => setFMes(e.target.value)}>
-          <option value="">Todos los meses</option>
-          {MESES.map((mes, idx) => (<option key={mes} value={String(idx + 1).padStart(2, '0')}>{mes}</option>))}
-        </select>
-        <select value={fAnio} onChange={(e) => setFAnio(e.target.value)}>
-          <option value="">Todos los años</option>
-          {anios.map((y) => (<option key={y} value={y}>{y}</option>))}
-        </select>
+        <div className={s.filterSelect}>
+          <Select
+            value={fMes}
+            options={[
+              { value: '', label: 'Todos los meses' },
+              ...MESES.map((mes, idx) => ({
+                value: String(idx + 1).padStart(2, '0'),
+                label: mes,
+              })),
+            ]}
+            onChange={setFMes}
+            ariaLabel="Filtrar por mes"
+          />
+        </div>
+        <div className={s.filterSelect}>
+          <Select
+            value={fAnio}
+            options={[
+              { value: '', label: 'Todos los años' },
+              ...ANIOS.map((y) => ({ value: y, label: y })),
+            ]}
+            onChange={setFAnio}
+            ariaLabel="Filtrar por año"
+          />
+        </div>
       </div>
 
       <div className={s.kpis}>
@@ -117,7 +136,7 @@ export default function Cuentas() {
         <div className={s.kpi}><div className={s.kpiLabel}>Ingresos</div><div className={s.kpiValue} style={{ color: 'var(--up)' }}>{formatEur(ingresos)}</div></div>
         <div className={s.kpi}><div className={s.kpiLabel}>Gastos</div><div className={s.kpiValue} style={{ color: 'var(--down)' }}>{formatEur(gastos)}</div></div>
         <div className={s.kpi}><div className={s.kpiLabel}>Diferencia</div><div className={s.kpiValue} style={{ color: diferencia >= 0 ? 'var(--up)' : 'var(--down)' }}>{formatEur(diferencia)}</div></div>
-        <div className={s.kpi}><div className={s.kpiLabel}>Nº de cuentas</div><div className={s.kpiValue}>{list.length}</div></div>
+        <div className={s.kpi}><div className={s.kpiLabel}>Nº de cuentas</div><div className={s.kpiValue}>{numeroCuentas}</div></div>
       </div>
 
       <div className={`card ${s.cardBlock}`}>
@@ -144,13 +163,12 @@ export default function Cuentas() {
         )}
       </div>
 
-      <form ref={formRef} className={`card ${s.cardBlock}`} onSubmit={submit}>
+      <form ref={formRef} className={`card ${s.cardBlock}`} onSubmit={submit} noValidate>
         <div className="sec-title">Añadir cuenta</div>
         <div className={s.row}>
-          <div className={s.field}><label>Nombre</label><input type="text" placeholder="Ej: Cuenta corriente" value={nombre} onChange={(e) => setNombre(e.target.value)} /></div>
-          <div className={s.field}><label>Saldo inicial (€)</label><input type="number" step="0.01" placeholder="0,00" value={importe} onChange={(e) => setImporte(e.target.value)} /></div>
+          <div className={s.field}><label>Nombre</label><input type="text" placeholder="Ej: Cuenta corriente" value={nombre} aria-invalid={err?.field === 'nombre'} onChange={(e) => { setNombre(e.target.value); setErr(null) }} />{fieldErr('nombre')}</div>
+          <div className={s.field}><label>Saldo inicial (€)</label><input type="number" step="0.01" placeholder="0,00" value={importe} aria-invalid={err?.field === 'importe'} onChange={(e) => { setImporte(e.target.value); setErr(null) }} />{fieldErr('importe')}</div>
         </div>
-        {formErr && <p className={s.error}>{formErr}</p>}
         <button className={s.btn} type="submit" disabled={crearCuenta.isPending} style={{ marginTop: 4 }}>{crearCuenta.isPending ? 'Guardando…' : 'Añadir cuenta'}</button>
       </form>
     </div>

@@ -67,7 +67,7 @@ export default function Topbar() {
           <div className={s.brandIcon}>
             <LogoIcon />
           </div>
-          Jodrix<span>Finance</span>
+          <span className={s.brandText}>You<span>Finance</span></span>
         </div>
 
         <nav className={s.nav}>

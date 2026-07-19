@@ -20,6 +20,11 @@ import type {
   PatrimonioSnapshot,
   RecurrentePrecioResponse,
   RegisterRequest,
+  ResumenCuenta,
+  ResumenDeuda,
+  ResumenInversion,
+  ResumenRecurrente,
+  TipoPago,
   TransaccionDTO,
   TransaccionResponse,
   UserProfile,
@@ -50,6 +55,8 @@ export const userApi = {
 // ── Recursos ──
 export const financeApi = {
   cuentas: () => api.get<CuentaResponse[]>('/api/cuenta').then((r) => r.data),
+  cuentaResumen: (params: { anio?: number; mes?: number }) =>
+    api.get<ResumenCuenta>('/api/cuenta/resumen', { params }).then((r) => r.data),
   crearCuenta: (body: CuentaDTO) =>
     api.post<CuentaResponse>('/api/cuenta', body).then((r) => r.data),
   actualizarCuenta: (id: number, body: CuentaDTO) =>
@@ -84,6 +91,9 @@ export const financeApi = {
   eliminarTransaccion: (cuentaId: number, id: number) =>
     api.delete<void>(`/api/cuenta/${cuentaId}/transacciones/${id}`).then((r) => r.data),
   inversiones: () => api.get<InversionResponse[]>('/api/inversion').then((r) => r.data),
+  // Totales calculados en el backend (una sola llamada; evita recalcular en el front).
+  inversionResumen: () =>
+    api.get<ResumenInversion>('/api/inversion/resumen').then((r) => r.data),
   crearInversion: (body: InversionDTO) =>
     api.post<InversionResponse>('/api/inversion', body).then((r) => r.data),
   actualizarInversion: (id: number, body: ActualizarInversionDTO) =>
@@ -91,6 +101,7 @@ export const financeApi = {
   eliminarInversion: (id: number) =>
     api.delete<void>(`/api/inversion/${id}`).then((r) => r.data),
   deudas: () => api.get<DeudaResponse[]>('/api/deuda').then((r) => r.data),
+  deudaResumen: () => api.get<ResumenDeuda>('/api/deuda/resumen').then((r) => r.data),
   crearDeuda: (body: DeudaDTO) =>
     api.post<DeudaResponse>('/api/deuda', body).then((r) => r.data),
   actualizarDeuda: (id: number, body: DeudaDTO) =>
@@ -99,6 +110,10 @@ export const financeApi = {
     api.delete<void>(`/api/deuda/${id}`).then((r) => r.data),
   recurrentes: () =>
     api.get<GastoRecurrenteResponse[]>('/api/recurrente').then((r) => r.data),
+  recurrenteResumen: (tipo: TipoPago) =>
+    api
+      .get<ResumenRecurrente>('/api/recurrente/resumen', { params: { tipo } })
+      .then((r) => r.data),
   crearRecurrente: (body: CrearGasto) =>
     api.post<GastoRecurrenteResponse>('/api/recurrente', body).then((r) => r.data),
   actualizarRecurrente: (id: number, body: ActualizarGasto) =>

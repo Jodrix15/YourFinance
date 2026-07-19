@@ -11,6 +11,7 @@
 
 .filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 1.25rem; }
 .filters select { padding: 8px 10px; font-size: 13px; font-family: inherit; background: var(--input-bg); color: var(--tx1); border: 1px solid var(--border2); border-radius: var(--r-md); }
+.filterSelect { width: 160px; }
 
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
 .cuentaCard {
@@ -40,6 +41,9 @@
 .field label { display: block; font-size: 12px; font-weight: 500; color: var(--tx2); margin-bottom: 5px; }
 .field input { width: 100%; padding: 9px 12px; font-size: 14px; font-family: inherit; background: var(--input-bg); color: var(--tx1); border: 1px solid var(--border2); border-radius: var(--r-md); }
 .field input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(47, 129, 247, 0.15); }
+.field input[aria-invalid='true'] { border-color: var(--down); }
+.field input[aria-invalid='true']:focus { box-shadow: 0 0 0 3px rgba(220, 53, 69, 0.15); }
+.fieldError { margin-top: 5px; font-size: 12px; color: var(--down); }
 
 .btn { padding: 9px 16px; font-size: 14px; font-weight: 600; background: var(--accent); color: #fff; border: none; border-radius: var(--r-md); cursor: pointer; transition: opacity 0.15s; }
 .btn:hover { opacity: 0.88; }

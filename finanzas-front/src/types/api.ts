@@ -94,6 +94,38 @@ export interface MovimientosPage {
   ingresos: number
   gastos: number
   inversiones: number
+  diferencia: number
+}
+
+// ── Resúmenes (KPIs agregados calculados en el backend) ──
+export interface ResumenInversion {
+  importeTotal: number
+  capitalAportadoTotal: number
+  plusvaliaTotal: number
+  porcentajeTotal: number
+}
+
+export interface ResumenDeuda {
+  totalPendiente: number
+  totalPagado: number
+  totalConIntereses: number
+  gastoMensualEstimado: number
+  numeroDeudas: number
+}
+
+export interface ResumenRecurrente {
+  gastoMensual: number
+  gastoAnual: number
+  activos: number
+  total: number
+}
+
+export interface ResumenCuenta {
+  totalCuentas: number
+  ingresos: number
+  gastos: number
+  diferencia: number
+  numeroCuentas: number
 }
 
 export interface InversionResponse {

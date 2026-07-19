@@ -8,6 +8,7 @@ import {
   useEliminarRecurrente,
   useNuevoPrecioRecurrente,
   useRecurrentes,
+  useResumenRecurrente,
 } from '@/hooks/useFinance'
 import { useTheme } from '@/context/ThemeContext'
 import Modal from '@/components/ui/Modal'
@@ -18,18 +19,13 @@ import { notifyOk, notifyError } from '@/lib/notify'
 import { chartTheme } from '@/lib/chartSetup'
 import { formatEur } from '@/lib/format'
 import { apiErrorMessage } from '@/lib/api'
+import Select from '@/components/ui/Select'
+import CategoriaSelect from '@/components/ui/CategoriaSelect'
 import type { Frecuencia, GastoRecurrenteResponse } from '@/types/api'
 import s from './Recurrentes.module.css'
 
 const num = (v: string) => (v.trim() === '' ? NaN : Number(v.replace(',', '.')))
-const sum = (arr: number[]) => arr.reduce((a, b) => a + Number(b || 0), 0)
 const today = () => new Date().toISOString().slice(0, 10)
-
-// Coste mensual normalizado (anual → /12)
-function mensual(g: GastoRecurrenteResponse): number {
-  const imp = Number(g.importeActual || 0)
-  return g.frecuencia === 'ANUAL' ? imp / 12 : imp
-}
 
 type Mode = 'nueva' | 'actualizar'
 
@@ -46,6 +42,7 @@ export default function Recurrentes() {
   const { theme } = useTheme()
   const confirm = useConfirm()
   const { data: recurrentesData, isLoading, isError, error } = useRecurrentes()
+  const { data: resumen } = useResumenRecurrente('RECURRENTE')
   const { data: categorias } = useCategorias()
 
   const crearRecurrente = useCrearRecurrente()
@@ -62,7 +59,9 @@ export default function Recurrentes() {
   const [mode, setMode] = useState<Mode>('nueva')
   const [selId, setSelId] = useState('')
   const [form, setForm] = useState({ ...EMPTY })
-  const [formErr, setFormErr] = useState<string | null>(null)
+  const [err, setErr] = useState<{ field: string; msg: string } | null>(null)
+  const fieldErr = (f: string) =>
+    err?.field === f ? <div className={s.fieldError}>{err.msg}</div> : null
   const [detail, setDetail] = useState<GastoRecurrenteResponse | null>(null)
 
   const formRef = useRef<HTMLDivElement>(null)
@@ -105,8 +104,10 @@ export default function Recurrentes() {
 
   const recs = (recurrentesData ?? []).filter((r) => r.tipoPago === 'RECURRENTE')
   const activos = recs.filter((r) => r.active)
-  const gastoMensual = sum(activos.map(mensual))
-  const gastoAnual = gastoMensual * 12
+  const gastoMensual = resumen?.gastoMensual ?? 0
+  const gastoAnual = resumen?.gastoAnual ?? 0
+  const numActivos = resumen?.activos ?? activos.length
+  const numTotal = resumen?.total ?? recs.length
 
   // Gasto real por mes: los mensuales cuentan cada mes; cada anual cae en el mes de su pago.
   const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
@@ -162,11 +163,12 @@ export default function Recurrentes() {
 
   function set<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((f) => ({ ...f, [key]: value }))
+    setErr(null)
   }
 
   function switchMode(m: Mode) {
     setMode(m)
-    setFormErr(null)
+    setErr(null)
     setSelId('')
     setForm({ ...EMPTY })
   }
@@ -195,15 +197,18 @@ export default function Recurrentes() {
 
   async function submit(e: FormEvent) {
     e.preventDefault()
-    setFormErr(null)
+    setErr(null)
     const nombre = form.nombre.trim()
     const catName = form.catName.trim()
     const importe = num(form.importe)
-    if (!nombre) return setFormErr('Indica el nombre del gasto recurrente.')
-    if (!catName) return setFormErr('Indica una categoría.')
+    if (mode === 'actualizar' && !selId)
+      return setErr({ field: 'selId', msg: 'Selecciona un gasto recurrente.' })
+    if (!nombre) return setErr({ field: 'nombre', msg: 'Indica el nombre del gasto recurrente.' })
+    if (!catName) return setErr({ field: 'catName', msg: 'Indica una categoría.' })
     if (Number.isNaN(importe) || importe <= 0)
-      return setFormErr('El importe debe ser mayor que 0.')
-    if (!form.fechaPrimerPago) return setFormErr('Indica la fecha del primer pago.')
+      return setErr({ field: 'importe', msg: 'El importe debe ser mayor que 0.' })
+    if (!form.fechaPrimerPago)
+      return setErr({ field: 'fechaPrimerPago', msg: 'Indica la fecha del primer pago.' })
 
     try {
       const categoriaId = await resolverCategoriaId(catName)
@@ -219,7 +224,6 @@ export default function Recurrentes() {
           importeInicial: importe,
         })
       } else {
-        if (!selId) return setFormErr('Selecciona un gasto recurrente.')
         const rec = recs.find((x) => x.id === Number(selId))
         await actualizarRecurrente.mutateAsync({
           id: Number(selId),
@@ -241,9 +245,8 @@ export default function Recurrentes() {
       }
       notifyOk(mode === 'nueva' ? 'Gasto recurrente creado' : 'Gasto recurrente actualizado')
       switchMode(mode)
-    } catch (err) {
-      setFormErr(apiErrorMessage(err))
-      notifyError(err)
+    } catch (error) {
+      notifyError(error)
     }
   }
 
@@ -294,11 +297,11 @@ export default function Recurrentes() {
         </div>
         <div className={s.kpi}>
           <div className={s.kpiLabel}>Activos</div>
-          <div className={s.kpiValue}>{activos.length}</div>
+          <div className={s.kpiValue}>{numActivos}</div>
         </div>
         <div className={s.kpi}>
           <div className={s.kpiLabel}>Total</div>
-          <div className={s.kpiValue}>{recs.length}</div>
+          <div className={s.kpiValue}>{numTotal}</div>
         </div>
       </div>
 
@@ -415,19 +418,22 @@ export default function Recurrentes() {
           </button>
         </div>
 
-        <form onSubmit={submit}>
+        <form onSubmit={submit} noValidate>
           {mode === 'actualizar' && (
             <div className={s.row}>
               <div className={s.field}>
                 <label>Gasto a actualizar</label>
-                <select value={selId} onChange={(e) => loadRec(e.target.value)}>
-                  <option value="">Selecciona</option>
-                  {recs.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {r.nombre}
-                    </option>
-                  ))}
-                </select>
+                <Select
+                  value={selId}
+                  options={recs.map((r) => ({ value: String(r.id), label: r.nombre }))}
+                  placeholder="Selecciona"
+                  invalid={err?.field === 'selId'}
+                  onChange={(v) => {
+                    loadRec(v)
+                    setErr(null)
+                  }}
+                />
+                {fieldErr('selId')}
               </div>
             </div>
           )}
@@ -441,35 +447,34 @@ export default function Recurrentes() {
                     type="text"
                     placeholder="Ej: Alquiler"
                     value={form.nombre}
+                    aria-invalid={err?.field === 'nombre'}
                     onChange={(e) => set('nombre', e.target.value)}
                   />
+                  {fieldErr('nombre')}
                 </div>
                 <div className={s.field}>
                   <label>Categoría</label>
-                  <input
-                    type="text"
-                    list="rec-cats"
-                    placeholder="Ej: Vivienda"
+                  <CategoriaSelect
                     value={form.catName}
-                    onChange={(e) => set('catName', e.target.value)}
+                    categorias={gastoCats}
+                    invalid={err?.field === 'catName'}
+                    onChange={(v) => set('catName', v)}
                   />
-                  <datalist id="rec-cats">
-                    {gastoCats.map((c) => (
-                      <option key={c.id} value={c.nombre} />
-                    ))}
-                  </datalist>
+                  {fieldErr('catName')}
                 </div>
               </div>
               <div className={s.row}>
                 <div className={s.field}>
                   <label>Frecuencia</label>
-                  <select
+                  <Select
                     value={form.frecuencia}
-                    onChange={(e) => set('frecuencia', e.target.value as Frecuencia)}
-                  >
-                    <option value="MENSUAL">Mensual</option>
-                    <option value="ANUAL">Anual</option>
-                  </select>
+                    options={[
+                      { value: 'MENSUAL', label: 'Mensual' },
+                      { value: 'ANUAL', label: 'Anual' },
+                    ]}
+                    onChange={(v) => set('frecuencia', v as Frecuencia)}
+                    ariaLabel="Frecuencia"
+                  />
                 </div>
                 <div className={s.field}>
                   <label>Importe (€)</label>
@@ -479,16 +484,20 @@ export default function Recurrentes() {
                     min="0"
                     placeholder="0,00"
                     value={form.importe}
+                    aria-invalid={err?.field === 'importe'}
                     onChange={(e) => set('importe', e.target.value)}
                   />
+                  {fieldErr('importe')}
                 </div>
                 <div className={s.field}>
                   <label>Fecha primer pago</label>
                   <input
                     type="date"
                     value={form.fechaPrimerPago}
+                    aria-invalid={err?.field === 'fechaPrimerPago'}
                     onChange={(e) => set('fechaPrimerPago', e.target.value)}
                   />
+                  {fieldErr('fechaPrimerPago')}
                 </div>
                 <label className={s.check}>
                   <input
@@ -503,7 +512,6 @@ export default function Recurrentes() {
                 Si la categoría no existe, se crea automáticamente (tipo Gasto). Al
                 actualizar, si cambias el importe se registra como nueva variación de precio.
               </p>
-              {formErr && <p className={s.error}>{formErr}</p>}
               <button className={s.btn} type="submit" disabled={saving} style={{ marginTop: 4 }}>
                 {saving
                   ? 'Guardando…'

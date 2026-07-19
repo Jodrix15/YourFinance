@@ -33,6 +33,10 @@
   flex: 1;
   min-width: 160px;
 }
+.selectWrap {
+  width: 150px;
+  flex-shrink: 0;
+}
 .input:focus,
 .select:focus {
   outline: none;

@@ -9,6 +9,7 @@ import { useConfirm } from '@/components/ui/ConfirmProvider'
 import { notifyOk, notifyError } from '@/lib/notify'
 import { apiErrorMessage } from '@/lib/api'
 import Skeleton from '@/components/ui/Skeleton'
+import Select from '@/components/ui/Select'
 import type { CategoriaResponse, TipoMovimiento } from '@/types/api'
 import s from './CategoriasManager.module.css'
 
@@ -109,17 +110,9 @@ export default function CategoriasManager() {
           maxLength={40}
           onChange={(e) => setNombre(e.target.value)}
         />
-        <select
-          className={s.select}
-          value={tipo}
-          onChange={(e) => setTipo(e.target.value as TipoMovimiento)}
-        >
-          {TIPOS.map((t) => (
-            <option key={t.value} value={t.value}>
-              {t.label}
-            </option>
-          ))}
-        </select>
+        <div className={s.selectWrap}>
+          <Select value={tipo} options={TIPOS} onChange={setTipo} ariaLabel="Tipo" />
+        </div>
         <button
           className={s.btn}
           type="submit"

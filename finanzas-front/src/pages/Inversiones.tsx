@@ -7,6 +7,7 @@ import {
   useCrearInversion,
   useEliminarInversion,
   useInversiones,
+  useInversionTotales,
 } from '@/hooks/useFinance'
 import { useTheme } from '@/context/ThemeContext'
 import { useConfirm } from '@/components/ui/ConfirmProvider'
@@ -16,10 +17,11 @@ import { notifyOk, notifyError } from '@/lib/notify'
 import { PALETTE, chartTheme } from '@/lib/chartSetup'
 import { formatEur, formatPct } from '@/lib/format'
 import { apiErrorMessage } from '@/lib/api'
+import Select from '@/components/ui/Select'
+import CategoriaSelect from '@/components/ui/CategoriaSelect'
 import s from './Inversiones.module.css'
 
 const num = (v: string) => (v.trim() === '' ? NaN : Number(v.replace(',', '.')))
-const sum = (arr: number[]) => arr.reduce((a, b) => a + Number(b || 0), 0)
 
 type Mode = 'nueva' | 'actualizar'
 type SortField = 'categoria' | 'aportado' | 'total' | 'plusvalia' | 'pct'
@@ -29,6 +31,12 @@ export default function Inversiones() {
   const confirm = useConfirm()
   const { data: inversiones, isLoading, isError, error } = useInversiones()
   const { data: categorias } = useCategorias()
+  const {
+    importeTotal: totalInvertido,
+    aportadoTotal: totalAportado,
+    plusvaliaTotal,
+    porcentajeTotal: rentabilidad,
+  } = useInversionTotales()
 
   const crearInversion = useCrearInversion()
   const actualizarInversion = useActualizarInversion()
@@ -41,7 +49,9 @@ export default function Inversiones() {
   )
 
   const [mode, setMode] = useState<Mode>('nueva')
-  const [formErr, setFormErr] = useState<string | null>(null)
+  const [err, setErr] = useState<{ field: string; msg: string } | null>(null)
+  const fieldErr = (f: string) =>
+    err?.field === f ? <div className={s.fieldError}>{err.msg}</div> : null
 
   // Nueva inversión
   const [catName, setCatName] = useState('')
@@ -59,7 +69,7 @@ export default function Inversiones() {
   const formRef = useRef<HTMLDivElement>(null)
   function irAlFormulario() {
     setMode('nueva')
-    setFormErr(null)
+    setErr(null)
     formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     window.setTimeout(
       () => formRef.current?.querySelector<HTMLInputElement>('input')?.focus({ preventScroll: true }),
@@ -142,10 +152,6 @@ export default function Inversiones() {
         return (Number(va) - Number(vb)) * dir
       })
     : list
-  const totalInvertido = sum(list.map((i) => i.capitalTotal))
-  const totalAportado = sum(list.map((i) => i.capitalAportado))
-  const plusvaliaTotal = totalInvertido - totalAportado
-  const rentabilidad = totalAportado > 0 ? (plusvaliaTotal / totalAportado) * 100 : 0
 
   const t = chartTheme()
   const doughnut = {
@@ -175,13 +181,15 @@ export default function Inversiones() {
 
   async function submitNueva(e: FormEvent) {
     e.preventDefault()
-    setFormErr(null)
+    setErr(null)
     const a = num(aportado)
     const tot = num(total)
     const name = catName.trim()
-    if (!name) return setFormErr('Indica una categoría.')
-    if (Number.isNaN(a) || a <= 0) return setFormErr('El capital aportado debe ser mayor que 0.')
-    if (Number.isNaN(tot) || tot < 0) return setFormErr('El valor actual no es válido.')
+    if (!name) return setErr({ field: 'catName', msg: 'Indica una categoría.' })
+    if (Number.isNaN(a) || a <= 0)
+      return setErr({ field: 'aportado', msg: 'El capital aportado debe ser mayor que 0.' })
+    if (Number.isNaN(tot) || tot < 0)
+      return setErr({ field: 'total', msg: 'El valor actual no es válido.' })
     try {
       // Reutiliza la categoría si ya existe (por nombre); si no, la crea.
       const existing = invCats.find(
@@ -199,24 +207,28 @@ export default function Inversiones() {
       setCatName('')
       setAportado('')
       setTotal('')
-    } catch (err) {
-      setFormErr(apiErrorMessage(err))
-      notifyError(err)
+    } catch (error) {
+      notifyError(error)
     }
   }
 
   async function submitActualizar(e: FormEvent) {
     e.preventDefault()
-    setFormErr(null)
-    if (!updId) return setFormErr('Selecciona una inversión.')
+    setErr(null)
+    if (!updId) return setErr({ field: 'updId', msg: 'Selecciona una inversión.' })
     const ap = num(updAportacion)
     const val = num(updValor)
     const hasAp = !Number.isNaN(ap)
     const hasVal = !Number.isNaN(val)
     if (!hasAp && !hasVal)
-      return setFormErr('Indica una nueva aportación, un valor actual, o ambos.')
-    if (hasAp && ap < 0) return setFormErr('La aportación no puede ser negativa.')
-    if (hasVal && val < 0) return setFormErr('El valor actual no puede ser negativo.')
+      return setErr({
+        field: 'updAportacion',
+        msg: 'Indica una nueva aportación, un valor actual, o ambos.',
+      })
+    if (hasAp && ap < 0)
+      return setErr({ field: 'updAportacion', msg: 'La aportación no puede ser negativa.' })
+    if (hasVal && val < 0)
+      return setErr({ field: 'updValor', msg: 'El valor actual no puede ser negativo.' })
     try {
       await actualizarInversion.mutateAsync({
         id: Number(updId),
@@ -226,9 +238,8 @@ export default function Inversiones() {
       notifyOk('Inversión actualizada')
       setUpdAportacion('')
       setUpdValor('')
-    } catch (err) {
-      setFormErr(apiErrorMessage(err))
-      notifyError(err)
+    } catch (error) {
+      notifyError(error)
     }
   }
 
@@ -237,7 +248,7 @@ export default function Inversiones() {
     setUpdId(String(id))
     setUpdAportacion('')
     setUpdValor('')
-    setFormErr(null)
+    setErr(null)
     window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' })
   }
 
@@ -437,7 +448,7 @@ export default function Inversiones() {
             className={`${s.tab} ${mode === 'nueva' ? s.tabActive : ''}`}
             onClick={() => {
               setMode('nueva')
-              setFormErr(null)
+              setErr(null)
             }}
           >
             Nueva inversión
@@ -447,7 +458,7 @@ export default function Inversiones() {
             className={`${s.tab} ${mode === 'actualizar' ? s.tabActive : ''}`}
             onClick={() => {
               setMode('actualizar')
-              setFormErr(null)
+              setErr(null)
             }}
           >
             Actualizar
@@ -455,22 +466,20 @@ export default function Inversiones() {
         </div>
 
         {mode === 'nueva' ? (
-          <form onSubmit={submitNueva}>
+          <form onSubmit={submitNueva} noValidate>
             <div className={s.row}>
               <div className={s.field}>
                 <label>Categoría</label>
-                <input
-                  type="text"
-                  list="inv-cats"
-                  placeholder="Ej: ETFs globales"
+                <CategoriaSelect
                   value={catName}
-                  onChange={(e) => setCatName(e.target.value)}
+                  categorias={invCats}
+                  invalid={err?.field === 'catName'}
+                  onChange={(v) => {
+                    setCatName(v)
+                    setErr(null)
+                  }}
                 />
-                <datalist id="inv-cats">
-                  {invCats.map((c) => (
-                    <option key={c.id} value={c.nombre} />
-                  ))}
-                </datalist>
+                {fieldErr('catName')}
               </div>
               <div className={s.field}>
                 <label>Capital aportado (€)</label>
@@ -480,8 +489,13 @@ export default function Inversiones() {
                   min="0"
                   placeholder="0,00"
                   value={aportado}
-                  onChange={(e) => setAportado(e.target.value)}
+                  aria-invalid={err?.field === 'aportado'}
+                  onChange={(e) => {
+                    setAportado(e.target.value)
+                    setErr(null)
+                  }}
                 />
+                {fieldErr('aportado')}
               </div>
               <div className={s.field}>
                 <label>Valor actual (€)</label>
@@ -491,20 +505,24 @@ export default function Inversiones() {
                   min="0"
                   placeholder="0,00"
                   value={total}
-                  onChange={(e) => setTotal(e.target.value)}
+                  aria-invalid={err?.field === 'total'}
+                  onChange={(e) => {
+                    setTotal(e.target.value)
+                    setErr(null)
+                  }}
                 />
+                {fieldErr('total')}
               </div>
             </div>
             <p className={s.hint}>
               Si la categoría no existe, se crea automáticamente (tipo Inversión).
             </p>
-            {formErr && <p className={s.error}>{formErr}</p>}
             <button className={s.btn} type="submit" disabled={saving} style={{ marginTop: 4 }}>
               {saving ? 'Guardando…' : 'Añadir inversión'}
             </button>
           </form>
         ) : (
-          <form onSubmit={submitActualizar}>
+          <form onSubmit={submitActualizar} noValidate>
             {list.length === 0 ? (
               <p className={s.hint}>No tienes inversiones que actualizar todavía.</p>
             ) : (
@@ -512,14 +530,20 @@ export default function Inversiones() {
                 <div className={s.row}>
                   <div className={s.field}>
                     <label>Categoría</label>
-                    <select value={updId} onChange={(e) => setUpdId(e.target.value)}>
-                      <option value="">Selecciona</option>
-                      {list.map((i) => (
-                        <option key={i.id} value={i.id}>
-                          {i.categoriaNombre ?? `#${i.id}`}
-                        </option>
-                      ))}
-                    </select>
+                    <Select
+                      value={updId}
+                      options={list.map((i) => ({
+                        value: String(i.id),
+                        label: i.categoriaNombre ?? `#${i.id}`,
+                      }))}
+                      placeholder="Selecciona"
+                      invalid={err?.field === 'updId'}
+                      onChange={(v) => {
+                        setUpdId(v)
+                        setErr(null)
+                      }}
+                    />
+                    {fieldErr('updId')}
                   </div>
                   <div className={s.field}>
                     <label>Nueva aportación (€)</label>
@@ -529,8 +553,13 @@ export default function Inversiones() {
                       min="0"
                       placeholder="Opcional"
                       value={updAportacion}
-                      onChange={(e) => setUpdAportacion(e.target.value)}
+                      aria-invalid={err?.field === 'updAportacion'}
+                      onChange={(e) => {
+                        setUpdAportacion(e.target.value)
+                        setErr(null)
+                      }}
                     />
+                    {fieldErr('updAportacion')}
                   </div>
                   <div className={s.field}>
                     <label>Valor actual (€)</label>
@@ -540,14 +569,18 @@ export default function Inversiones() {
                       min="0"
                       placeholder="0,00"
                       value={updValor}
-                      onChange={(e) => setUpdValor(e.target.value)}
+                      aria-invalid={err?.field === 'updValor'}
+                      onChange={(e) => {
+                        setUpdValor(e.target.value)
+                        setErr(null)
+                      }}
                     />
+                    {fieldErr('updValor')}
                   </div>
                 </div>
                 <p className={s.hint}>
                   La aportación se suma al capital; el valor actual fija el total del momento (la plusvalía se calcula sola).
                 </p>
-                {formErr && <p className={s.error}>{formErr}</p>}
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 4 }}>
                   <button className={s.btn} type="submit" disabled={saving}>
                     {saving ? 'Guardando…' : 'Actualizar inversión'}

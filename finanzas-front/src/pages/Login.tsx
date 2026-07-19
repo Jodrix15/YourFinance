@@ -56,7 +56,7 @@ export default function Login() {
             <LogoIcon />
           </div>
           <div className={s.brand}>
-            Jodrix<span>Finance</span>
+            You<span>Finance</span>
           </div>
         </div>
 
@@ -122,7 +122,7 @@ export default function Login() {
 
         {error && <div className={s.error}>{error}</div>}
 
-        <div className={s.footer}>Jodrix Finance · Panel financiero personal</div>
+        <div className={s.footer}>YouFinance · Panel financiero personal</div>
       </div>
     </div>
   )

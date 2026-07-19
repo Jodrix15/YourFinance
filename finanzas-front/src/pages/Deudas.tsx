@@ -11,6 +11,7 @@ import {
   useCrearDeuda,
   useDeudas,
   useEliminarDeuda,
+  useResumenDeuda,
 } from '@/hooks/useFinance'
 import { useTheme } from '@/context/ThemeContext'
 import { useConfirm } from '@/components/ui/ConfirmProvider'
@@ -20,21 +21,11 @@ import { notifyOk, notifyError } from '@/lib/notify'
 import { PALETTE, chartTheme } from '@/lib/chartSetup'
 import { formatEur, formatPct } from '@/lib/format'
 import { apiErrorMessage } from '@/lib/api'
+import Select from '@/components/ui/Select'
 import type { DeudaResponse, Frecuencia } from '@/types/api'
 import s from './Deudas.module.css'
 
 const num = (v: string) => (v.trim() === '' ? NaN : Number(v.replace(',', '.')))
-const sum = (arr: number[]) => arr.reduce((a, b) => a + Number(b || 0), 0)
-
-// Meses desde hoy hasta la fecha de vencimiento (0 si no hay fecha o ya pasó)
-function monthsUntil(dateStr: string | null): number {
-  if (!dateStr) return 0
-  const now = new Date()
-  const due = new Date(dateStr)
-  return (
-    (due.getFullYear() - now.getFullYear()) * 12 + (due.getMonth() - now.getMonth())
-  )
-}
 
 type Mode = 'nueva' | 'actualizar'
 
@@ -53,6 +44,7 @@ export default function Deudas() {
   const { theme } = useTheme()
   const confirm = useConfirm()
   const { data: deudas, isLoading, isError, error } = useDeudas()
+  const { data: resumen } = useResumenDeuda()
   const crearDeuda = useCrearDeuda()
   const actualizarDeuda = useActualizarDeuda()
   const eliminarDeuda = useEliminarDeuda()
@@ -60,7 +52,9 @@ export default function Deudas() {
   const [mode, setMode] = useState<Mode>('nueva')
   const [selId, setSelId] = useState('')
   const [form, setForm] = useState({ ...EMPTY })
-  const [formErr, setFormErr] = useState<string | null>(null)
+  const [err, setErr] = useState<{ field: string; msg: string } | null>(null)
+  const fieldErr = (f: string) =>
+    err?.field === f ? <div className={s.fieldError}>{err.msg}</div> : null
 
   const formRef = useRef<HTMLDivElement>(null)
   function irAlFormulario() {
@@ -139,15 +133,11 @@ export default function Deudas() {
   if (isError) return <p style={{ color: 'var(--down)' }}>{apiErrorMessage(error)}</p>
 
   const list: DeudaResponse[] = deudas ?? []
-  const totalPendiente = sum(list.map((d) => d.cantidadPendiente))
-  const totalPagado = sum(list.map((d) => d.cantidadPagada))
-  const totalConIntereses = sum(list.map((d) => d.importeTotal))
-
-  // Gasto mensual estimado: suma de (pendiente / meses hasta vencimiento) de las deudas con fecha futura.
-  const gastoMensual = list.reduce((acc, d) => {
-    const m = monthsUntil(d.fechaVencimiento)
-    return m > 0 ? acc + Number(d.cantidadPendiente || 0) / m : acc
-  }, 0)
+  const totalPendiente = resumen?.totalPendiente ?? 0
+  const totalPagado = resumen?.totalPagado ?? 0
+  const totalConIntereses = resumen?.totalConIntereses ?? 0
+  const gastoMensual = resumen?.gastoMensualEstimado ?? 0
+  const numeroDeudas = resumen?.numeroDeudas ?? list.length
 
   const t = chartTheme()
 
@@ -165,28 +155,31 @@ export default function Deudas() {
 
   function set<K extends keyof typeof form>(key: K, value: string) {
     setForm((f) => ({ ...f, [key]: value }))
+    setErr(null)
   }
 
   function switchMode(m: Mode) {
     setMode(m)
-    setFormErr(null)
+    setErr(null)
     setSelId('')
     setForm({ ...EMPTY })
   }
 
   async function submit(e: FormEvent) {
     e.preventDefault()
-    setFormErr(null)
+    setErr(null)
+    if (mode === 'actualizar' && !selId)
+      return setErr({ field: 'selId', msg: 'Selecciona una deuda.' })
     const selDebt =
       mode === 'actualizar' ? list.find((d) => d.id === Number(selId)) : undefined
     // En "Actualizar" el nombre es opcional: si se deja vacío, se conserva el actual.
     const nombre = form.nombre.trim() || selDebt?.nombreDeuda || ''
     const acreedor = form.acreedor.trim()
     const importe = num(form.importe)
-    if (!nombre) return setFormErr('Indica el nombre de la deuda.')
-    if (!acreedor) return setFormErr('Indica el acreedor.')
+    if (!nombre) return setErr({ field: 'nombre', msg: 'Indica el nombre de la deuda.' })
+    if (!acreedor) return setErr({ field: 'acreedor', msg: 'Indica el acreedor.' })
     if (Number.isNaN(importe) || importe <= 0)
-      return setFormErr('El importe debe ser mayor que 0.')
+      return setErr({ field: 'importe', msg: 'El importe debe ser mayor que 0.' })
 
     const interesPct = num(form.interesPct)
     const pagada = num(form.pagada)
@@ -209,14 +202,12 @@ export default function Deudas() {
         await crearDeuda.mutateAsync(body)
         notifyOk('Deuda creada')
       } else {
-        if (!selId) return setFormErr('Selecciona una deuda.')
         await actualizarDeuda.mutateAsync({ id: Number(selId), ...body })
         notifyOk('Deuda actualizada')
       }
       switchMode(mode)
-    } catch (err) {
-      setFormErr(apiErrorMessage(err))
-      notifyError(err)
+    } catch (error) {
+      notifyError(error)
     }
   }
 
@@ -275,7 +266,7 @@ export default function Deudas() {
         </div>
         <div className={s.kpi}>
           <div className={s.kpiLabel}>Nº de deudas</div>
-          <div className={s.kpiValue}>{list.length}</div>
+          <div className={s.kpiValue}>{numeroDeudas}</div>
         </div>
       </div>
 
@@ -392,19 +383,25 @@ export default function Deudas() {
           </button>
         </div>
 
-        <form onSubmit={submit}>
+        <form onSubmit={submit} noValidate>
           {mode === 'actualizar' && (
             <div className={s.row}>
               <div className={s.field}>
                 <label>Deuda a actualizar</label>
-                <select value={selId} onChange={(e) => setSelId(e.target.value)}>
-                  <option value="">Selecciona</option>
-                  {list.map((d) => (
-                    <option key={d.id} value={d.id}>
-                      {d.nombreDeuda} — {d.acreedor}
-                    </option>
-                  ))}
-                </select>
+                <Select
+                  value={selId}
+                  options={list.map((d) => ({
+                    value: String(d.id),
+                    label: `${d.nombreDeuda} — ${d.acreedor}`,
+                  }))}
+                  placeholder="Selecciona"
+                  invalid={err?.field === 'selId'}
+                  onChange={(v) => {
+                    setSelId(v)
+                    setErr(null)
+                  }}
+                />
+                {fieldErr('selId')}
               </div>
             </div>
           )}
@@ -418,8 +415,10 @@ export default function Deudas() {
                     type="text"
                     placeholder="Ej: Hipoteca"
                     value={form.nombre}
+                    aria-invalid={err?.field === 'nombre'}
                     onChange={(e) => set('nombre', e.target.value)}
                   />
+                  {fieldErr('nombre')}
                 </div>
                 <div className={s.field}>
                   <label>Acreedor</label>
@@ -427,8 +426,10 @@ export default function Deudas() {
                     type="text"
                     placeholder="Ej: BBVA"
                     value={form.acreedor}
+                    aria-invalid={err?.field === 'acreedor'}
                     onChange={(e) => set('acreedor', e.target.value)}
                   />
+                  {fieldErr('acreedor')}
                 </div>
               </div>
               <div className={s.row}>
@@ -440,8 +441,10 @@ export default function Deudas() {
                     min="0"
                     placeholder="0,00"
                     value={form.importe}
+                    aria-invalid={err?.field === 'importe'}
                     onChange={(e) => set('importe', e.target.value)}
                   />
+                  {fieldErr('importe')}
                 </div>
                 <div className={s.field}>
                   <label>Interés (%)</label>
@@ -488,20 +491,21 @@ export default function Deudas() {
                 </div>
                 <div className={s.field}>
                   <label>Frecuencia de la cuota</label>
-                  <select
+                  <Select
                     value={form.frecuencia}
-                    onChange={(e) => set('frecuencia', e.target.value)}
-                  >
-                    <option value="MENSUAL">Mensual</option>
-                    <option value="ANUAL">Anual</option>
-                  </select>
+                    options={[
+                      { value: 'MENSUAL', label: 'Mensual' },
+                      { value: 'ANUAL', label: 'Anual' },
+                    ]}
+                    onChange={(v) => set('frecuencia', v)}
+                    ariaLabel="Frecuencia de la cuota"
+                  />
                 </div>
               </div>
               <p className={s.hint}>
                 El total con intereses y lo pendiente se calculan solos a partir del
                 importe, el interés y lo pagado.
               </p>
-              {formErr && <p className={s.error}>{formErr}</p>}
               <button className={s.btn} type="submit" disabled={saving} style={{ marginTop: 4 }}>
                 {saving
                   ? 'Guardando…'
@@ -514,9 +518,6 @@ export default function Deudas() {
 
           {mode === 'actualizar' && list.length === 0 && (
             <p className={s.hint}>No tienes deudas que actualizar todavía.</p>
-          )}
-          {mode === 'actualizar' && formErr && !selId && (
-            <p className={s.error}>{formErr}</p>
           )}
         </form>
       </div>

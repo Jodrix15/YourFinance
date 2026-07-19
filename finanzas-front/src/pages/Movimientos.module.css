@@ -9,9 +9,10 @@
 
 .cardBlock { margin-bottom: 1.25rem; }
 .cardHead { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
-.filters { display: flex; gap: 8px; flex-wrap: wrap; }
+.filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .filters select, .filters input { padding: 7px 10px; font-size: 13px; font-family: inherit; background: var(--input-bg); color: var(--tx1); border: 1px solid var(--border2); border-radius: var(--r-md); }
 .filters input { min-width: 160px; }
+.filterSelect { width: 150px; }
 
 .movTable { width: 100%; border-collapse: collapse; font-size: 13px; }
 .movTable th { text-align: left; font-weight: 500; color: var(--tx2); padding: 8px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
@@ -43,6 +44,9 @@
 .field label { display: block; font-size: 12px; font-weight: 500; color: var(--tx2); margin-bottom: 5px; }
 .field input, .field select { width: 100%; padding: 9px 12px; font-size: 14px; font-family: inherit; background: var(--input-bg); color: var(--tx1); border: 1px solid var(--border2); border-radius: var(--r-md); }
 .field input:focus, .field select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(47, 129, 247, 0.15); }
+.field input[aria-invalid='true'] { border-color: var(--down); }
+.field input[aria-invalid='true']:focus { box-shadow: 0 0 0 3px rgba(220, 53, 69, 0.15); }
+.fieldError { margin-top: 5px; font-size: 12px; color: var(--down); }
 .field input:disabled, .field select:disabled { opacity: 0.55; cursor: not-allowed; }
 
 .actions { display: flex; gap: 8px; align-items: center; }
