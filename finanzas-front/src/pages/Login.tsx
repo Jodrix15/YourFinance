@@ -53,10 +53,10 @@ export default function Login() {
       <div className={s.card}>
         <div className={s.logo}>
           <div className={s.logoIcon}>
-            <LogoIcon />
+            <LogoIcon />  
           </div>
           <div className={s.brand}>
-            You<span>Finance</span>
+            <span>YouFinance</span>
           </div>
         </div>
 
